@@ -28,12 +28,8 @@ users.graph = graph_from_data_frame(user.user.df, directed=F) # For simplicity, 
 is.connected(users.graph) # Wasn't it supposed to be fully connected?
 
 
-fakeNewsId = selectNetworkWithLowerNrUsers(news.user.df, 1, 9)
-fake.news.subgraph = createFakeNewsSubgraphFromId(news.user.df, fakeNewsId)
 
-
-
-simulateSI <- function(g, tmax, beta, verbose=F) {
+simulateSI <- function(g, tmax, beta, verbose=F, fakeNewsId, news.user.df) {
   # Given a graph, a maximum time and a beta, performs an SI simulation.
   ts = 1:tmax
   
@@ -43,16 +39,17 @@ simulateSI <- function(g, tmax, beta, verbose=F) {
   
   set.seed(321)
   nums = runif(tmax * E, 0, 1)
+  nToInfect <- 3
+ 
+   # Start with infected nodes
+  vertices.infected = data.table(vId = as.numeric(V(g)$name), infected = rep(FALSE, N))
+  vToInfect <- selectSourceOfFakeNews(fakeNewsId, g, nToInfect, news.user.df)
   
-  # Start with infected nodes
-  # TODO: Change method of choosing infected
-  p = 3
-  infected = rep(FALSE, N)
-  infected.start = sample(N, p, prob=NULL)
-  infected[infected.start] = TRUE
+  #Infect them
+  for (vi in vToInfect) {
+      vertices.infected[vertices.infected$vId == vi, ]$infected = TRUE        
+  }
   
-  # Data frame with vertices id, since they are identified already.
-  vertices.infected = data.table(vId = as.numeric(V(g)$name), infected)
   
   # For each timestep...
   for (x in ts) {
@@ -86,7 +83,14 @@ simulateSI <- function(g, tmax, beta, verbose=F) {
 
 }
 
+
+fakeNewsId = selectNetworkWithLowerNrUsers(news.user.df, 1, 9)
+fake.news.subgraph = createFakeNewsSubgraphFromId(news.user.df, fakeNewsId)
+
+
 beta = 0.1
 tmax = 48 # Each step is an hour. So tops 48 hours.
 
-simulateSI(fake.news.subgraph, tmax, beta)
+simulateSI(fake.news.subgraph, tmax, beta, fakeNewsId, news.user.df)
+
+
