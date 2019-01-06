@@ -28,7 +28,8 @@ is.connected(users.graph) # Wasn't it supposed to be fully connected?
 
 
 createFakeNewsSubgraphFromId <- function(news.user.df, fakeNewsId, neighOrder=2, verbose=T) {
-    
+    # Given a fake news id, user-user network and a neighborhood order, a subgraph is created from the user-user network containing all those infected users + neighbors 2 jumps away.
+  
   infected.rows <- news.user.df[news.user.df$FakeNewsId == fakeNewsId,]
   if(verbose){
       cat("Nr. infected rows for fakeNews ", fakeNewsId, ": ", nrow(infected.rows), "\n")    
@@ -47,11 +48,9 @@ createFakeNewsSubgraphFromId <- function(news.user.df, fakeNewsId, neighOrder=2,
   return(fake.news.subgraph)
 }
 
-#fakeNewsId <- "50"
-#fake.news.subgraph = createFakeNewsSubgraphFromId(news.user.df, fakeNewsId)
-
-
 progressBar <- function(current, upperBound){
+    # Prints a progress bar
+    
     currentStr = str_c(rep("#", current), collapse="")
     voidBound = upperBound - current
     voidStr = str_c(rep(".", voidBound), collapse="")
