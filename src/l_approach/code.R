@@ -27,10 +27,12 @@ users.graph = graph_from_data_frame(user.user.df, directed=F) # For simplicity, 
 is.connected(users.graph) # Wasn't it supposed to be fully connected?
 
 
-createFakeNewsSubgraphFromId <- function(news.user.df, fakeNewsId, neighOrder=2) {
+createFakeNewsSubgraphFromId <- function(news.user.df, fakeNewsId, neighOrder=2, verbose=T) {
     
   infected.rows <- news.user.df[news.user.df$FakeNewsId == fakeNewsId,]
-  cat("Nr. infected rows for fakeNews ", fakeNewsId, ": ", nrow(infected.rows), "\n")
+  if(verbose){
+      cat("Nr. infected rows for fakeNews ", fakeNewsId, ": ", nrow(infected.rows), "\n")    
+  }
   
   fake.news.subgraphs.array <- make_ego_graph(users.graph, order=neighOrder, nodes=infected.rows$SharedBy)
   
@@ -39,9 +41,37 @@ createFakeNewsSubgraphFromId <- function(news.user.df, fakeNewsId, neighOrder=2)
       g = fake.news.subgraphs.array[[x]]    
       fake.news.subgraph = fake.news.subgraph + g
   }
-  cat("Nr. users in network: ", length(V(fake.news.subgraph)), "\n")
+  if(verbose){
+      cat("Nr. users in network: ", length(V(fake.news.subgraph)), "\n")   
+  }
   return(fake.news.subgraph)
 }
 
-fakeNewsId <- "102"
+#fakeNewsId <- "50"
+#fake.news.subgraph = createFakeNewsSubgraphFromId(news.user.df, fakeNewsId)
+
+
+progressBar <- function(current, upperBound){
+    currentStr = str_c(rep("#", current), collapse="")
+    voidBound = upperBound - current
+    voidStr = str_c(rep(".", voidBound), collapse="")
+    print(paste(currentStr, voidStr, " [", current, "/", upperBound, "]", sep = ""))
+}
+
+selectNetworkWithLowerNrUsers <- function(news.user.df, lowerBound=1, upperBound=10) {
+  # Given two bounds for fake news ids, this function returns the network with
+  # the lowest number of users. Useful for testing purposes.
+  info.table <- data.table(fakeNewsId = numeric(), nrVertices = numeric())
+  for (x in lowerBound:upperBound) {
+      progressBar(x, upperBound)
+      fake.news.subgraph = createFakeNewsSubgraphFromId(news.user.df, x, verbose=F)
+      info.table <- rbind(info.table, list(x, length(V(fake.news.subgraph))))    
+  }
+  cat("\n Fake news with lowest number of vertices: \n")
+  minRow <- info.table[info.table$nrVertices == min(info.table$nrVertices), ]
+  print(minRow)
+  return(minRow$fakeNewsId)
+}
+
+fakeNewsId = selectNetworkWithLowerNrUsers(news.user.df, 1, 9)
 fake.news.subgraph = createFakeNewsSubgraphFromId(news.user.df, fakeNewsId)

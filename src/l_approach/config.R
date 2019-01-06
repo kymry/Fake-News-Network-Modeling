@@ -1,5 +1,5 @@
 # Load and install necessary packages
-requiredPackages <- c("igraph", "ggplot2", "ggthemes", "gridExtra", "data.table")
+requiredPackages <- c("igraph", "ggplot2", "ggthemes", "gridExtra", "data.table", "stringr")
 
 for (pac in requiredPackages) {
     if(!require(pac,  character.only=TRUE)){
@@ -12,3 +12,4 @@ rm(requiredPackages)
 
 #### Remove all previous objects 
 rm(list = ls())
+
