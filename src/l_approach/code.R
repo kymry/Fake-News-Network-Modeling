@@ -10,6 +10,7 @@ rm(wd)
 
 ########################
 source("config.R")
+source("functions.R")
 ########################
 
 # Load data
@@ -27,50 +28,65 @@ users.graph = graph_from_data_frame(user.user.df, directed=F) # For simplicity, 
 is.connected(users.graph) # Wasn't it supposed to be fully connected?
 
 
-createFakeNewsSubgraphFromId <- function(news.user.df, fakeNewsId, neighOrder=2, verbose=T) {
-    # Given a fake news id, user-user network and a neighborhood order, a subgraph is created from the user-user network containing all those infected users + neighbors 2 jumps away.
-  
-  infected.rows <- news.user.df[news.user.df$FakeNewsId == fakeNewsId,]
-  if(verbose){
-      cat("Nr. infected rows for fakeNews ", fakeNewsId, ": ", nrow(infected.rows), "\n")    
-  }
-  
-  fake.news.subgraphs.array <- make_ego_graph(users.graph, order=neighOrder, nodes=infected.rows$SharedBy)
-  
-  fake.news.subgraph = make_empty_graph(directed = F)
-  for (x in length(fake.news.subgraphs.array)) {
-      g = fake.news.subgraphs.array[[x]]    
-      fake.news.subgraph = fake.news.subgraph + g
-  }
-  if(verbose){
-      cat("Nr. users in network: ", length(V(fake.news.subgraph)), "\n")   
-  }
-  return(fake.news.subgraph)
-}
-
-progressBar <- function(current, upperBound){
-    # Prints a progress bar
-    
-    currentStr = str_c(rep("#", current), collapse="")
-    voidBound = upperBound - current
-    voidStr = str_c(rep(".", voidBound), collapse="")
-    print(paste(currentStr, voidStr, " [", current, "/", upperBound, "]", sep = ""))
-}
-
-selectNetworkWithLowerNrUsers <- function(news.user.df, lowerBound=1, upperBound=10) {
-  # Given two bounds for fake news ids, this function returns the network with
-  # the lowest number of users. Useful for testing purposes.
-  info.table <- data.table(fakeNewsId = numeric(), nrVertices = numeric())
-  for (x in lowerBound:upperBound) {
-      progressBar(x, upperBound)
-      fake.news.subgraph = createFakeNewsSubgraphFromId(news.user.df, x, verbose=F)
-      info.table <- rbind(info.table, list(x, length(V(fake.news.subgraph))))    
-  }
-  cat("\n Fake news with lowest number of vertices: \n")
-  minRow <- info.table[info.table$nrVertices == min(info.table$nrVertices), ]
-  print(minRow)
-  return(minRow$fakeNewsId)
-}
-
 fakeNewsId = selectNetworkWithLowerNrUsers(news.user.df, 1, 9)
 fake.news.subgraph = createFakeNewsSubgraphFromId(news.user.df, fakeNewsId)
+
+
+
+simulateSI <- function(g, tmax, beta, verbose=F) {
+  # Given a graph, a maximum time and a beta, performs an SI simulation.
+  ts = 1:tmax
+  
+  edgelist <- as.data.frame(as_edgelist(g), stringsAsFactors = F)
+  E = length(E(g))
+  N = length(V(g))
+  
+  set.seed(321)
+  nums = runif(tmax * E, 0, 1)
+  
+  # Start with infected nodes
+  # TODO: Change method of choosing infected
+  p = 3
+  infected = rep(FALSE, N)
+  infected.start = sample(N, p, prob=NULL)
+  infected[infected.start] = TRUE
+  
+  # Data frame with vertices id, since they are identified already.
+  vertices.infected = data.table(vId = as.numeric(V(g)$name), infected)
+  
+  # For each timestep...
+  for (x in ts) {
+      
+      inf.prev.step <- vertices.infected[vertices.infected$infected == TRUE,]$vId
+      
+      # For each infected
+      x.i <- 1 # subindex to get random prob.
+      for (inf in inf.prev.step) {
+          
+          # we get the susceptibles related to the infected
+          v.susceptible.1 = edgelist[edgelist$V1 == inf, ]$V2
+          v.susceptible.2 = edgelist[edgelist$V2 == inf, ]$V1
+          v.susc <- append(v.susceptible.1, v.susceptible.2)
+          
+          # Try to infect them if not infected
+          for(vs in v.susc){
+              alpha = nums[x * x.i]
+              if(!vertices.infected[vertices.infected$vId == vs,]$infected & alpha <= beta){
+                  vertices.infected[vertices.infected$vId == vs,]$infected = TRUE
+              }
+              x.i <- x.i + 1
+          }
+          
+      }
+      
+      if(verbose){
+          cat("It", x, ", nr. infected: ", nrow(vertices.infected[vertices.infected$infected == T,]), "/", N,"\n")   
+      }
+  }
+
+}
+
+beta = 0.1
+tmax = 48 # Each step is an hour. So tops 48 hours.
+
+simulateSI(fake.news.subgraph, tmax, beta)
