@@ -152,9 +152,27 @@ getEfficiencyOfFakeNews <- function(tmax=48){
     # Their peak is at the 2nd and 3rd hours.
     # They slowly decline as time progresses. After 48h, it just dies out.
     
-    x.seq.max <- 10
+    x.seq.max <- tmax
     x <- seq(0, x.seq.max, by = 1)
     y <- dnorm(x, mean = 1.5, sd = 5)
     y <- y/max(y)
     return(y)
+}
+
+plotEvolutionRatio  <- function(nrInfected, N, title){
+    nrSusceptible = N - nrInfected
+    ts = seq(length(nrInfected))
+    plot(ts,(nrInfected/nrSusceptible), type='l', col="blue", main=title, ylab = "ratio", xlab="t")
+    
+    grid()
+}
+
+plotEvolution  <- function(nrInfected, N, title){
+    nrSusceptible = N - nrInfected
+    ts = seq(length(nrInfected))
+    plot(ts,nrSusceptible, type='l', ylim = c(0, N), col="blue", main=title, ylab = "# nodes", xlab="t")
+    lines(nrInfected, col="red")
+    grid()
+    legend("topright", legend = c("Infected", "Susceptible"),
+           lty = 1, lwd = 2,col = c("red", "blue"))
 }

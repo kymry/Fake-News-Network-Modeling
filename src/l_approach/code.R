@@ -40,7 +40,7 @@ simulateSI <- function(g, tmax, beta, verbose=F, fakeNewsId, news.user.df) {
   efficiency <- getEfficiencyOfFakeNews(tmax) # Consider this as an inverse damping factor.
   
   set.seed(321)
-  nums = runif(tmax * E * N, 0, 1)
+  nums = runif(tmax * E, 0, 1)
   nToInfect <- 3
  
    # Start with infected nodes
@@ -71,7 +71,7 @@ simulateSI <- function(g, tmax, beta, verbose=F, fakeNewsId, news.user.df) {
           
           # Try to infect them if not infected
           for(vs in v.susc){
-              alpha = nums[x * x.i]
+              alpha = nums[x + x.i]
               if(!vertices.infected[vertices.infected$vId == vs,]$infected & (alpha <= beta.t)){
                   vertices.infected[vertices.infected$vId == vs,]$infected = TRUE
               }
@@ -93,9 +93,11 @@ fakeNewsId = selectNetworkWithLowerNrUsers(news.user.df, 1, 9)
 fake.news.subgraph = createFakeNewsSubgraphFromId(news.user.df, fakeNewsId)
 
 
-beta = 0.1 # Prob of 10% of getting infected.
+beta = 0.3 # Prob of 10% of getting infected.
 tmax = 48 # Each step is an hour. So tops 48 hours.
 
 infected.progression <- simulateSI(fake.news.subgraph, tmax, beta, fakeNewsId, news.user.df)
+plotEvolutionRatio(infected.progression, length(V(fake.news.subgraph)), "Infected/susceptible ratio")
+plotEvolution(infected.progression, length(V(fake.news.subgraph)), "Infected/susceptible ratio")
 
 
