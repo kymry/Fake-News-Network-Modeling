@@ -1,3 +1,10 @@
+#############################
+####### FUNCTIONS ###########
+#############################
+
+#-------------------------
+###### --- UTILS  --- ####
+#-------------------------
 progressBar <- function(current, upperBound){
     # Prints a progress bar
     
@@ -44,7 +51,14 @@ selectNetworkWithLowerNrUsers <- function(news.user.df, lowerBound=1, upperBound
     return(minRow$fakeNewsId)
 }
 
+#-------------------------
+###### --- SIMS  --- #######
+#-------------------------
 
+###### --- v.1  --- #######
+## Just a baseline. 
+##  - Infects 3 nodes at the start randomly.
+##  - Uses a uniform distribution to determine whether to infect a node or not.
 simulateSIBaseline <- function(g, tmax, beta, verbose=F) {
     # Given a graph, a maximum time and a beta, performs an SI simulation.
     # It picks 3 random nodes as infected.
@@ -60,7 +74,6 @@ simulateSIBaseline <- function(g, tmax, beta, verbose=F) {
     nums = runif(tmax * E, 0, 1)
     
     # Start with infected nodes
-    # TODO: Change method of choosing infected
     p = 3
     infected = rep(FALSE, N)
     infected.start = sample(N, p, prob=NULL)
@@ -101,6 +114,24 @@ simulateSIBaseline <- function(g, tmax, beta, verbose=F) {
     
 }
 
+###### --- v.2  --- #######
+## Assumes fake news efficiency on spreading follows a distrubtion, with a peak
+## and a decline.
+##  - Infects n*2/3 with highest degree nodes + 1/3 of randomly picked nodes.
+##  - Picks beta.t*susceptible nodes each time iteration and infects them (does not use runif).
+
+getEfficiencyOfFakeNews <- function(tmax=48){
+    # Laura understanding of how effective are fake news on spreading as time progresses. 
+    # Their peak is at the 2nd and 3rd hours.
+    # They slowly decline as time progresses. After 48h, it just dies out.
+    
+    x.seq.max <- tmax
+    x <- seq(0, x.seq.max, by = 1)
+    y <- dnorm(x, mean = 1.5, sd = 5)
+    y <- y/max(y)
+    return(y)
+}
+
 
 selectSourceOfFakeNews <- function(fakeNewsId, g, n, news.user.df){
     # given a fakeNewsId, number of nodes to pick and dataset related to it
@@ -125,11 +156,72 @@ selectSourceOfFakeNews <- function(fakeNewsId, g, n, news.user.df){
     return(toInfect)
 }
 
+simulateSI <- function(g, tmax, beta, verbose=F, fakeNewsId, news.user.df) {
+    # Given a graph, a maximum time and a beta, performs an SI simulation.
+    ts = 1:tmax
+    
+    edgelist <- as.data.frame(as_edgelist(g), stringsAsFactors = F)
+    E = length(E(g))
+    N = length(V(g))
+    
+    efficiency <- getEfficiencyOfFakeNews(tmax) # Consider this as an inverse damping factor.
+    
+    # Start with infected nodes
+    vertices.infected = data.table(vId = as.numeric(V(g)$name), infected = rep(FALSE, N))
+    nToInfect <- 3
+    vToInfect <- selectSourceOfFakeNews(fakeNewsId, g, nToInfect, news.user.df)
+    
+    #Infect them
+    for (vi in vToInfect) {
+        vertices.infected[vertices.infected$vId == vi, ]$infected = TRUE        
+    }
+    
+    
+    # For each timestep...
+    nrInfected = c(0)
+    for (x in ts) {
+        
+        beta.t <- efficiency[x]*beta
+        inf.prev.step <- vertices.infected[vertices.infected$infected == TRUE,]$vId
+        
+        # For each infected
+        for (inf in inf.prev.step) {
+            
+            # we get the susceptibles related to the infected
+            v.susceptible.1 = edgelist[edgelist$V1 == inf, ]$V2
+            v.susceptible.2 = edgelist[edgelist$V2 == inf, ]$V1
+            # Susceptible without taking into account if they are infected or not
+            v.susc <- append(v.susceptible.1, v.susceptible.2); v.susc = unique(v.susc)
+            
+            # Purge them until they are all not infected
+            non.infected.prev <- vertices.infected[vertices.infected$infected == FALSE,]$vId
+            v.susc = v.susc[v.susc  %in% non.infected.prev] # Keeping only those nodes that are not yet infected
+            
+            nr.v.infect.at.x = floor(beta.t * length(v.susc)) # Take beta prop. of susc nodes to infect
+            v.infect.at.x = sample(v.susc, nr.v.infect.at.x, prob = NULL)
+            
+            for (to.infect in v.infect.at.x){
+                vertices.infected[vertices.infected$vId == to.infect, ]$infected = TRUE
+            }
+        }
+        
+        if(verbose){
+            cat("It", x, ", beta.t:", beta.t, ", nr. infected: ", nrow(vertices.infected[vertices.infected$infected == T,]), "/", N,"\n")   
+        }
+        nrInfected <- append(nrInfected,  nrow(vertices.infected[vertices.infected$infected == T,]))
+    }
+    return(nrInfected)
+}
+
+
+#-------------------------
+###### --- GRAPHICS  --- ####
+#-------------------------
 plotEfficiencyPlot <- function(tmax=48){
     # Laura understanding of how effective are fake news on spreading as time progresses. 
     # Their peak is at the 2nd and 3rd hours.
     # They slowly decline as time progresses. After 48h, it just dies out.
-
+    
     x.seq.max <- 10
     x <- seq(0, x.seq.max, by = .1)
     y <- dnorm(x, mean = 1.5, sd = 5)
@@ -145,18 +237,6 @@ plotEfficiencyPlot <- function(tmax=48){
              subtitle = '(Efficiency of spread of fake news as time progresses)') +
         theme_minimal()
     
-}
-
-getEfficiencyOfFakeNews <- function(tmax=48){
-    # Laura understanding of how effective are fake news on spreading as time progresses. 
-    # Their peak is at the 2nd and 3rd hours.
-    # They slowly decline as time progresses. After 48h, it just dies out.
-    
-    x.seq.max <- tmax
-    x <- seq(0, x.seq.max, by = 1)
-    y <- dnorm(x, mean = 1.5, sd = 5)
-    y <- y/max(y)
-    return(y)
 }
 
 plotEvolutionRatio  <- function(nrInfected, N, title){
