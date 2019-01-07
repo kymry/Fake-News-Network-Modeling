@@ -35,11 +35,14 @@ fakeNewsId = selectNetworkWithLowerNrUsers(news.user.df, 1, 9)
 fake.news.subgraph = createFakeNewsSubgraphFromId(news.user.df, fakeNewsId)
 
 
-beta = 0.35 # Prob of 10% of getting infected.
+beta = 0.015 # Prob of 10% of getting infected.
 tmax = 48 # Each step is an hour. So tops 48 hours.
 
-infected.progression <- simulateSI(fake.news.subgraph, tmax, beta, fakeNewsId, news.user.df)
+infected.progression <- simulateSI(fake.news.subgraph, tmax, beta, fakeNewsId, news.user.df, T)
+
 plotEvolutionRatio(infected.progression, length(V(fake.news.subgraph)), "Infected/susceptible ratio")
 plotEvolution(infected.progression, length(V(fake.news.subgraph)), "Infected/susceptible ratio")
 
+# Choose best beta given a fake news id
+chooseFittingBeta(fakeNewsId, news.user.df)
 

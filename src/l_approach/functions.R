@@ -156,10 +156,11 @@ selectSourceOfFakeNews <- function(fakeNewsId, g, n, news.user.df){
     return(toInfect)
 }
 
-simulateSI <- function(g, tmax, beta, verbose=F, fakeNewsId, news.user.df) {
+simulateSI <- function(g, tmax, beta, fakeNewsId, news.user.df, verbose=F) {
     # Given a graph, a maximum time and a beta, performs an SI simulation.
     ts = 1:tmax
     
+    infected.originally = nrow(news.user.df[news.user.df$FakeNewsId == fakeNewsId,])
     edgelist <- as.data.frame(as_edgelist(g), stringsAsFactors = F)
     E = length(E(g))
     N = length(V(g))
@@ -207,12 +208,55 @@ simulateSI <- function(g, tmax, beta, verbose=F, fakeNewsId, news.user.df) {
         
         if(verbose){
             cat("It", x, ", beta.t:", beta.t, ", nr. infected: ", nrow(vertices.infected[vertices.infected$infected == T,]), "/", N,"\n")   
+            cat("-----------\nInfected originally: ", infected.originally, "\n")   
         }
-        nrInfected <- append(nrInfected,  nrow(vertices.infected[vertices.infected$infected == T,]))
+        currInf <-  nrow(vertices.infected[vertices.infected$infected == T,])
+        nrInfected <- append(nrInfected, currInf)
+        
+        if(beta.t < 0.001){
+            remaining = tmax - x
+            nrInfected <- append(nrInfected, rep(currInf, remaining))
+            if(verbose){
+                cat(" *** \n beta.t < 0.001. Stopping. \n")       
+            }
+            break
+        }
     }
     return(nrInfected)
 }
 
+
+chooseFittingBeta <- function(fakeNewsId, news.user.df) {
+    
+    ## Choosing fitting beta
+    infected.originally = nrow(news.user.df[news.user.df$FakeNewsId == fakeNewsId,])
+    thres.break.40 <- infected.originally + infected.originally*0.2 # Threshold of +0.2% nodes extra to stop
+    betas = c(0.001, 0.005); betas = append(betas, seq(0.01, 0.03, by = 0.0005))
+    avg.infect <- c()
+    pb <- 1
+    for (beta in betas){
+        set.seed(123)
+        progressBar(pb, length(betas))
+        nrInfected.10 <- c()
+        for(x in 1:10){
+            infected.progression <- simulateSI(fake.news.subgraph, tmax, beta, fakeNewsId, news.user.df, F)
+            nrInfected.10 <- append(nrInfected.10, infected.progression[length(infected.progression)])
+        }
+        avg.infect <- append(avg.infect, mean(nrInfected.10))
+        pb <- pb + 1
+        if(mean(nrInfected.10) >= thres.break.40){
+            print("More than 120% of nodes. No need to up beta")
+            break
+        }
+    }
+    avg.infect <- append(avg.infect, rep(9999, length(betas) - length(avg.infect))) 
+    df = data.frame(betas, avg.infect,  diff=abs(avg.infect - infected.originally))
+    print(df)
+    minDiffRow <- df[min(df$diff) == df$diff,]
+    cat(" ---------------- \n")
+    cat(" * Best beta: ", minDiffRow$betas, "\n")
+    cat(" * Avg. inf. : " , minDiffRow$avg.infect,"\n")
+}
 
 #-------------------------
 ###### --- GRAPHICS  --- ####
