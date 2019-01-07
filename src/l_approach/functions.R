@@ -251,11 +251,12 @@ chooseFittingBeta <- function(fakeNewsId, news.user.df) {
     }
     avg.infect <- append(avg.infect, rep(9999, length(betas) - length(avg.infect))) 
     df = data.frame(betas, avg.infect,  diff=abs(avg.infect - infected.originally))
-    print(df)
+    #print(df)
     minDiffRow <- df[min(df$diff) == df$diff,]
     cat(" ---------------- \n")
     cat(" * Best beta: ", minDiffRow$betas, "\n")
     cat(" * Avg. inf. : " , minDiffRow$avg.infect,"\n")
+    cat(" * Org. nr. inf: ", infected.originally, "\n")
 }
 
 #-------------------------

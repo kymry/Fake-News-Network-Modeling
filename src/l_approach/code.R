@@ -46,3 +46,9 @@ plotEvolution(infected.progression, length(V(fake.news.subgraph)), "Infected/sus
 # Choose best beta given a fake news id
 chooseFittingBeta(fakeNewsId, news.user.df)
 
+fake.news.ids <- c(2, 4, 6)
+for (f in fake.news.ids) {
+    cat("fake news id:", f, "\n")
+    chooseFittingBeta(f, news.user.df)
+}
+
