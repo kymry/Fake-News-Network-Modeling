@@ -76,7 +76,7 @@ tmax = 48 # Each step is an hour. So tops 48 hours.
 betaMit = beta - (beta/3)
 fakeNewsId = 4
 
-simulateSIWithMitigation <- function(g, tmax, beta, fakeNewsId, news.user.df, verbose=F, beta.imm) {
+simulateSIWithMitigation <- function(g, tmax, beta, fakeNewsId, news.user.df, verbose=F) {
     # Given a graph, a maximum time and a beta, performs an SI simulation.
     ts = 1:tmax
     
@@ -98,6 +98,10 @@ simulateSIWithMitigation <- function(g, tmax, beta, fakeNewsId, news.user.df, ve
         vertices.infected.imm[vertices.infected.imm$vId == vi, ]$infected = TRUE        
     }
     
+    # Compute centralization degrees of all nodes
+    centr.degree = centralization.degree(g, mode = "all")
+    degree.df <- data.table(vId = as.numeric(V(g)$name), degree=centr.degree$res)
+    degree.df <- degree.df[order(-degree.df$degree),] # Order descendingly by degree
     
     # For each timestep...
     nrInfected = c(0)
@@ -105,7 +109,7 @@ simulateSIWithMitigation <- function(g, tmax, beta, fakeNewsId, news.user.df, ve
     for (x in ts) {
         
         beta.t <- efficiency[x]*beta
-        meta.imm.t <- efficiencyTrueNews[x]*beta
+        beta.imm.t <- efficiencyTrueNews[x]*beta
         inf.prev.step <- vertices.infected.imm[vertices.infected.imm$infected == TRUE,]$vId
         
         # For each infected
@@ -136,8 +140,9 @@ simulateSIWithMitigation <- function(g, tmax, beta, fakeNewsId, news.user.df, ve
             v.susc = v.susc[v.susc  %in% non.infected.immune.prev] # Keeping only those nodes that are not yet infected & not immune
             
             # Immunize nodes
-            nr.v.imm.at.x = floor(meta.imm.t * length(v.susc)) # Take beta prop. of susc nodes to infect
-            v.imm.at.x = sample(v.susc, nr.v.imm.at.x, prob = NULL)
+            nr.v.imm.at.x = floor(beta.imm.t * length(v.susc)) # Take beta prop. of susc nodes to infect
+            v.imm.at.x = subset(degree.df, degree.df$vId %in% v.susc) # Immunize those with higher degree
+            v.imm.at.x = v.imm.at.x$vId[1:nr.v.imm.at.x]
             
             for (to.imm in v.imm.at.x){
                 vertices.infected.imm[vertices.infected.imm$vId == to.infect, ]$immune = TRUE
@@ -166,7 +171,7 @@ simulateSIWithMitigation <- function(g, tmax, beta, fakeNewsId, news.user.df, ve
     }
     return(list(nrInfected, nrImmune))
 }
-obj = simulateSIWithMitigation(fake.news.subgraph, tmax, beta, fakeNewsId, news.user.df, T, betaMit)
+obj = simulateSIWithMitigation(fake.news.subgraph, tmax, beta, fakeNewsId, news.user.df, T)
 infected = obj[[1]]
 immune = obj[[2]]
 

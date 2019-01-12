@@ -144,6 +144,7 @@ getEfficiencyOfTrueNews <- function(tmax=48){
 }
 
 
+
 selectSourceOfFakeNews <- function(fakeNewsId, g, n, news.user.df){
     # given a fakeNewsId, number of nodes to pick and dataset related to it
     # this function picks n vertices that could potentially be
