@@ -86,6 +86,7 @@ simulateSIWithMitigation <- function(g, tmax, beta, fakeNewsId, news.user.df, ve
     N = length(V(g))
     
     efficiency <- getEfficiencyOfFakeNews(tmax) # Consider this as an inverse damping factor.
+    efficiencyTrueNews <- getEfficiencyOfTrueNews(tmax)
     
     # New: Mitigation! Users that are immune to the fake news!
     vertices.infected.imm = data.table(vId = as.numeric(V(g)$name), infected = rep(FALSE, N), immune = rep(FALSE, N))
@@ -104,7 +105,7 @@ simulateSIWithMitigation <- function(g, tmax, beta, fakeNewsId, news.user.df, ve
     for (x in ts) {
         
         beta.t <- efficiency[x]*beta
-        meta.imm.t <- efficiency[x]*beta.imm
+        meta.imm.t <- efficiencyTrueNews[x]*beta
         inf.prev.step <- vertices.infected.imm[vertices.infected.imm$infected == TRUE,]$vId
         
         # For each infected
@@ -169,7 +170,10 @@ obj = simulateSIWithMitigation(fake.news.subgraph, tmax, beta, fakeNewsId, news.
 infected = obj[[1]]
 immune = obj[[2]]
 
+infected.progression <- simulateSI(fake.news.subgraph, tmax, beta, fakeNewsId, news.user.df, T)
+
 plotEvolution(infected, length(V(fake.news.subgraph)), "Infected/susceptible ratio")
+plotEvolution(infected.progression, length(V(fake.news.subgraph)), "Infected/susceptible ratio")
 plotEvolution(immune, length(V(fake.news.subgraph)), "Infected/susceptible ratio")
 
 plotEvolutionRatio(infected, length(V(fake.news.subgraph)), "Infected/susceptible ratio")

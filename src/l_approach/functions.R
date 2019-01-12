@@ -122,13 +122,24 @@ simulateSIBaseline <- function(g, tmax, beta, verbose=F) {
 
 getEfficiencyOfFakeNews <- function(tmax=48){
     # Laura understanding of how effective are fake news on spreading as time progresses. 
-    # Their peak is at the 2nd and 3rd hours.
     # They slowly decline as time progresses. After 48h, it just dies out.
     
     x.seq.max <- tmax
     x <- seq(0, x.seq.max, by = 1)
     y <- dnorm(x, mean = 1.5, sd = 5)
     y <- y/max(y)
+    return(y)
+}
+
+getEfficiencyOfTrueNews <- function(tmax=48){
+    # Laura understanding of how effective are True news on spreading as time progresses. 
+    # They slowly decline as time progresses. 
+    
+    x.seq.max <- tmax
+    x <- seq(0, x.seq.max, by = 1)
+    y <- dnorm(x, mean = 2.5, sd = 7)
+    y <- y/max(y)
+    y <- y - 0.05
     return(y)
 }
 
@@ -284,6 +295,33 @@ plotEfficiencyFakeNews <- function(tmax=48){
     
 }
 
+plotEfficiencyTrueNews <- function(tmax=48){
+    # Laura understanding of how effective are fake news on spreading as time progresses. 
+    # Their peak is at the 2nd and 3rd hours.
+    # They slowly decline as time progresses. After 48h, it just dies out.
+    
+    x.seq.max <- 10
+    x <- seq(0, x.seq.max, by = .1)
+    
+    y <- dnorm(x, mean = 3, sd = 5)
+    y <- y/max(y)# Scale y....
+    y.inf <- dnorm(x, mean = 2.5, sd = 7)
+    y.inf <- y.inf/max(y.inf); y.inf <- y.inf - 0.05
+    
+    x <-x*tmax/x.seq.max # Scale x...
+    df = data.frame(x, infection=y, immunization=y.inf)
+    ggplot(data = df) +
+        aes(x = x) +
+        geom_line(aes(y = immunization, color = "immunization")) +
+        geom_line(aes(y = infection, color = 'infection')) +
+        labs(title = 'Beta evolution over time',
+             x = 'time (hours)',
+             y = 'Infection probability',
+             subtitle = '(Efficiency of spread of fake news as time progresses)') +
+        
+        theme_minimal()
+}
+
 plotEvolutionRatio  <- function(nrInfected, N, title){
     nrSusceptible = N - nrInfected
     ts = seq(length(nrInfected))
@@ -301,30 +339,3 @@ plotEvolution  <- function(nrInfected, N, title){
     legend("topright", legend = c("Infected", "Susceptible"),
            lty = 1, lwd = 2,col = c("red", "blue"))
 }
-
-plotEfficiencyTrueNews <- function(tmax=48){
-    # Laura understanding of how effective are fake news on spreading as time progresses. 
-    # Their peak is at the 2nd and 3rd hours.
-    # They slowly decline as time progresses. After 48h, it just dies out.
-    
-    x.seq.max <- 10
-    x <- seq(0, x.seq.max, by = .1)
-    y <- dnorm(x, mean = 3, sd = 5)
-    x <-x*tmax/x.seq.max # Scale x...
-    y <- y/max(y)# Scale y....
-    y.inf <- dnorm(x, mean = 3, sd = 5)
-    y.inf <- y.inf/max(y.inf)
-    df = data.frame(x, y, y.inf)
-    ggplot(data = df) +
-        aes(x = x) +
-        geom_line(aes(y = y, color = 'y')) +
-        labs(title = 'Beta evolution over time',
-             x = 'time (hours)',
-             y = 'Infection probability',
-             subtitle = '(Efficiency of spread of fake news as time progresses)') +
-        geom_line(aes(y = y.inf, color = "y.inf")) +
-        theme_minimal()
-    
-}
-plotEfficiencyTrueNews()
-plotEfficiencyFakeNews()
