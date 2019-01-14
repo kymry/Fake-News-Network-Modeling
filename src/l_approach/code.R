@@ -47,11 +47,14 @@ plotEvolution(infected.progression, length(V(fake.news.subgraph)), "Infected/sus
 # Choose best beta given a fake news id
 chooseFittingBeta(fakeNewsId, news.user.df)
 
-fake.news.ids <- c(2, 4, 6)
-for (f in fake.news.ids) {
-    cat("fake news id:", f, "\n")
-    chooseFittingBeta(f, news.user.df)
+if(F){
+    fake.news.ids <- c(2, 4, 6)
+    for (f in fake.news.ids) {
+        cat("fake news id:", f, "\n")
+        chooseFittingBeta(f, news.user.df)
+    }
 }
+
 # Results:
 #     - fakeNewsId: 2
 #         - Best beta: 0.0175 
@@ -71,10 +74,12 @@ for (f in fake.news.ids) {
 #         - Original infected: 70
 
 #### Mitigation
-beta = 0.015 # Prob of 10% of getting infected.
+
+
+beta = 0.015 # Prob of 1.5% of getting infected.
 tmax = 48 # Each step is an hour. So tops 48 hours.
-betaMit = beta - (beta/3)
 fakeNewsId = 4
+g = createFakeNewsSubgraphFromId(news.user.df, fakeNewsId)
 
 simulateSIWithMitigation <- function(g, tmax, beta, fakeNewsId, news.user.df, verbose=F) {
     # Given a graph, a maximum time and a beta, performs an SI simulation.
@@ -123,7 +128,8 @@ simulateSIWithMitigation <- function(g, tmax, beta, fakeNewsId, news.user.df, ve
             
             ### 1. INFECT
             # Purge them until they are all not infected and not immune yet
-            non.infected.immune.prev <- vertices.infected.imm[vertices.infected.imm$infected == FALSE & vertices.infected.imm$immune == FALSE,]$vId
+            # 1.1 First take all the susceptible nodes
+            non.infected.immune.prev <- vertices.infected.imm[vertices.infected.imm$infected == FALSE,]$vId
             v.susc = v.susc[v.susc  %in% non.infected.immune.prev] # Keeping only those nodes that are not yet infected & not immune
             
             # Infect nodes
@@ -131,7 +137,11 @@ simulateSIWithMitigation <- function(g, tmax, beta, fakeNewsId, news.user.df, ve
             v.infect.at.x = sample(v.susc, nr.v.infect.at.x, prob = NULL)
             
             for (to.infect in v.infect.at.x){
-                vertices.infected.imm[vertices.infected.imm$vId == to.infect, ]$infected = TRUE
+                # 1.2 Infect only those that are not immunized
+                if(!vertices.infected.imm[vertices.infected.imm$vId == to.infect, ]$immune){
+                    vertices.infected.imm[vertices.infected.imm$vId == to.infect, ]$infected = TRUE    
+                }
+                
             }
             
             ### 2. IMMUNIZE
@@ -179,7 +189,6 @@ infected.progression <- simulateSI(fake.news.subgraph, tmax, beta, fakeNewsId, n
 
 plotEvolution(infected, length(V(fake.news.subgraph)), "Infected/susceptible ratio")
 plotEvolution(infected.progression, length(V(fake.news.subgraph)), "Infected/susceptible ratio")
-plotEvolution(immune, length(V(fake.news.subgraph)), "Infected/susceptible ratio")
 
-plotEvolutionRatio(infected, length(V(fake.news.subgraph)), "Infected/susceptible ratio")
-plotEvolution(infected.progression, length(V(fake.news.subgraph)), "Infected/susceptible ratio")
+g = make_star(10, mode="undirected") %>% set.vertex.attribute("name", value=1:10)
+set.vertex.attribute()
