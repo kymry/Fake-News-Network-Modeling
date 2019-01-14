@@ -147,11 +147,10 @@ simulateSIWithMitigation <- function(g, tmax, beta, fakeNewsId, news.user.df, ve
             ### 2. IMMUNIZE
             # We get again those that are not infected and not immune yet
             non.infected.immune.prev <- vertices.infected.imm[vertices.infected.imm$infected == FALSE & vertices.infected.imm$immune == FALSE,]$vId
-            v.susc = v.susc[v.susc  %in% non.infected.immune.prev] # Keeping only those nodes that are not yet infected & not immune
             
             # Immunize nodes
-            nr.v.imm.at.x = floor(beta.imm.t * length(v.susc)) # Take beta prop. of susc nodes to infect
-            v.imm.at.x = subset(degree.df, degree.df$vId %in% v.susc) # Immunize those with higher degree
+            nr.v.imm.at.x = floor(beta.imm.t * length(non.infected.immune.prev)) # Take beta prop. of susc nodes to infect
+            v.imm.at.x = subset(degree.df, degree.df$vId %in% non.infected.immune.prev) # Immunize those with higher degree
             v.imm.at.x = v.imm.at.x$vId[1:nr.v.imm.at.x]
             
             for (to.imm in v.imm.at.x){
@@ -191,4 +190,6 @@ plotEvolution(infected, length(V(fake.news.subgraph)), "Infected/susceptible rat
 plotEvolution(infected.progression, length(V(fake.news.subgraph)), "Infected/susceptible ratio")
 
 g = make_star(10, mode="undirected") %>% set.vertex.attribute("name", value=1:10)
-set.vertex.attribute()
+g = add_edges(g, c(9, 8))
+obj = simulateSIWithMitigation(g, tmax, beta, fakeNewsId, news.user.df, T)
+
