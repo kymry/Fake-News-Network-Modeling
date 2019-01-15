@@ -1,3 +1,5 @@
+#-------- Directory Settings --------#
+
 # load and install packages
 requiredPackages <- c("igraph", "ggplot2", "data.table")
 for (pac in requiredPackages) {
@@ -16,12 +18,19 @@ newsUser <- read.table('PolitiFact/PolitiFactNewsUser.txt', col.names=c("newsId"
 userUser <- as.matrix(read.table('PolitiFact/PolitiFactUserUser.txt', col.names=c("userId1","userId2")))
 
 # import data (buzzfeed)
-setwd("/Users/kymryburwell/Google Drive/UPC/Fall 2018/CSN/Final Project/FakeNewsNet-master/Data/")
-newsUser <- read.table('BuzzFeed/BuzzFeedNewsUser.txt', col.names=c("newsId","userId","times"))
-userUser <- as.matrix(read.table('BuzzFeed/BuzzFeedUserUser.txt', col.names=c("userId1","userId2")))
+# setwd("/Users/kymryburwell/Google Drive/UPC/Fall 2018/CSN/Final Project/FakeNewsNet-master/Data/")
+# newsUser <- read.table('BuzzFeed/BuzzFeedNewsUser.txt', col.names=c("newsId","userId","times"))
+# userUser <- as.matrix(read.table('BuzzFeed/BuzzFeedUserUser.txt', col.names=c("userId1","userId2")))
+
+
+
+#-------- Set News Article Data Structures --------#
+
+# set news id here
+currentNewsId = 4
 
 # extract users who shared fake news (news id = 4)
-shared <- newsUser[newsUser$newsId==4,2]
+shared <- newsUser[newsUser$newsId==currentNewsId,2]
 
 # obtain subgraph from user network
 userGraph <- graph_from_edgelist(userUser, directed=FALSE)
@@ -76,7 +85,7 @@ infect <- function(b, a, id, infectList, adj){
 
 }
 
-# simulates SI variation
+# simulates SI variation and returns infected list
 spread <- function(efficiency, b, a, t, infectList, adj, infected){
   
   # hold infected count over time
@@ -99,7 +108,7 @@ spread <- function(efficiency, b, a, t, infectList, adj, infected){
       infectList[newInfectList[i]] = 1 
     }
     vec <- c(vec, sum(infectList))
-    print(vec)
+    #print(vec)
     
   }
   
@@ -107,10 +116,78 @@ spread <- function(efficiency, b, a, t, infectList, adj, infected){
   
 }
 
-# Simulated epidemic with input parameters (beta, alpha, hours, ds to hold infected, adj matrix of network, starting infected)
+# simulates SI variation and returns the number of infected
+spreadReturnNumInfected <- function(efficiency, b, a, t, infectList, adj, infected){
+  
+  # hold infected count over time
+  vec <- c()
+  
+  # for 48 time steps
+  for(time in 1:t){
+    newInfectList = c()
+    
+    # for each infected 
+    for(i in 1:length(infected)){
+      n = myunlist(adj[infected[i]])
+      # for each neighbor of infected
+      for (j in 1:length(n)){
+        newInfectList = c(newInfectList,infect(efficiency[i]*b, a, n[j], infectList, adj)) # change to a/time to scale a dynamicallys
+      }
+      
+    }
+    for(i in 1:length(newInfectList)){ 
+      infectList[newInfectList[i]] = 1 
+    }
+    vec <- c(vec, sum(infectList))
+  }
+  
+  # return total number of infected
+  return(sum(infectList != 0))
+  
+}
+
+#-------- Simulate Epidemic - Find Best Fit Beta --------#
+
+# finds the best fit beta for a given fake news article
+findBestBeta <- function(efficiency, alpha, hours){
+  
+  # data structure for infected
+  infectList <- numeric(length(V(userSubgraph)))
+  infected <- shared[1:4,1]
+  for(i in 1:4){infectList[shared[i]] = 1}
+  
+  # set range of beta to search
+  betaRange <- seq(0.02, 0.4, by = 0.05)
+  
+  actualInfected <- length(shared)
+  difference <- 100000
+  bestBeta <- 0
+  
+  # find best beta
+  for (i in betaRange){
+    numInfected <- spreadReturnNumInfected(efficiency, i, alpha, hours, infectList, adj, infected)
+    if (abs(actualInfected - numInfected) < difference){
+      bestBeta <- i
+      difference <- abs(actualInfected - numInfected)
+    }
+    print(abs(actualInfected - numInfected))
+  }
+  
+  return(bestBeta)
+}
+
+
+
+#-------- Simulate Epidemic --------#
+
+# spread (beta, alpha, hours, ds to hold infected, adj matrix of network, starting infected)
 efficiency <- getEfficiencyBeta()
 infectList <- spread(efficiency, 0.1, 0.8, 48, infectList, adj, infected)
-bplotEvolution(infectList, length(adj), "SI with alpha and beta")
+
+# get best beta
+efficiency <- getEfficiencyBeta()
+bestBeta <- findBestBeta(efficiency, 0.5, 48)
+
 
 
 #-------- Auxilary Functions --------#
@@ -207,6 +284,3 @@ progressBar <- function(current, upperBound){
   voidStr = str_c(rep(".", voidBound), collapse="")
   print(paste(currentStr, voidStr, " [", current, "/", upperBound, "]", sep = ""))
 }
-
-
-
