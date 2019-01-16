@@ -27,7 +27,7 @@ userUser <- as.matrix(read.table('PolitiFact/PolitiFactUserUser.txt', col.names=
 #-------- Set News Article Data Structures --------#
 
 # set news id here
-currentNewsId = 30
+currentNewsId = 44
 
 # extract users who shared fake news (news id = 4)
 shared <- newsUser[newsUser$newsId==currentNewsId,2]
@@ -379,3 +379,21 @@ plotRatioSimInf  <- function(){
     
 }
 
+plotModelTest <- function{
+  
+    Real <- c(13, 90, 27, 35, 65, 12, 56, 100, 25, 77 )
+    Model <- c(12, 93, 24,  31, 105, 10, 147, 94, 23,  70)
+    news <- c('25', '26', '28', '29', '31', '32', '41', '42', '43', '44')
+    
+    df <- data.frame(Real, Model, news)
+    df <- melt(df, id.vars='news')
+    head(df)
+    
+    ggplot(df, aes(x=news, y=value, fill=variable)) +
+      theme_minimal()+
+      geom_bar(stat='identity', position='dodge')+
+      labs(title="Infected Nodes - Model Results vs. Real Data", y="number of infected (at t=48)", x="fake news article id")+
+      theme(plot.title = element_text(hjust = 0.5), axis.text.x = element_text(angle = 90, hjust = 1) )+
+      guides(fill=guide_legend(title="", values = c("Actual infected", "Simulated Infected") ))
+  
+}
