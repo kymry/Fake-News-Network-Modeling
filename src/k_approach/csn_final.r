@@ -27,7 +27,7 @@ userUser <- as.matrix(read.table('PolitiFact/PolitiFactUserUser.txt', col.names=
 #-------- Set News Article Data Structures --------#
 
 # set news id here
-currentNewsId = 44
+currentNewsId = 20
 
 # extract users who shared fake news (news id = 4)
 shared <- newsUser[newsUser$newsId==currentNewsId,2]
@@ -194,37 +194,42 @@ spreadReturnRatioInfSus <- function(efficiency, b, a, t, infectList, adj, infect
 # finds the best fit beta for a given fake news article
 findBestBeta <- function(efficiency, alpha, hours){
   
-  # data structure for infected
-  infectList <- numeric(length(V(userSubgraph)))
-  infected <- shared[1:4,1]
-  for(i in 1:4){infectList[shared[i]] = 1}
+  finalBeta <- 0
   
-  # set range of beta to search
-  betaRange <- seq(0.02, 0.5, by = 0.025)
-  
-  actualInfected <- length(shared)/2
-  difference <- 100000
-  bestBeta <- 0
-  
-  # find best beta
-  for (i in betaRange){
+  for (j in 1:10){
     
-    numInfected <- spreadReturnNumInfected(efficiency, i, alpha, hours, infectList, adj, infected)
-    if (abs(actualInfected - numInfected) < difference){
-      bestBeta <- i
-      difference <- abs(actualInfected - numInfected)
-    }
-    
-    print(abs(actualInfected - numInfected))
-    print(bestBeta)
-    print("-----")
-    
-    if ( difference <= 1){
-      return(bestBeta)
-    }
+        # data structure for infected
+        infectList <- numeric(length(V(userSubgraph)))
+        infected <- shared[1:4,1]
+        for(i in 1:4){infectList[shared[i]] = 1}
+        
+        # set range of beta to search
+        betaRange <- seq(0.02, 0.5, by = 0.025)
+        
+        actualInfected <- length(shared)/2
+        difference <- 100000
+        bestBeta <- 0
+        
+        # find best beta
+        for (i in betaRange){
+          
+          numInfected <- spreadReturnNumInfected(efficiency, i, alpha, hours, infectList, adj, infected)
+          if (abs(actualInfected - numInfected) < difference){
+            bestBeta <- i
+            difference <- abs(actualInfected - numInfected)
+          }
+          
+          print(abs(actualInfected - numInfected))
+          print(bestBeta)
+          print("-----")
+          
+          if ( difference <= 1){
+            finalBeta <- finalBeta + bestBeta
+            next
+          }
+        }
   }
-  
-  return(bestBeta)
+  return(finalBeta/10)
 }
 
 
