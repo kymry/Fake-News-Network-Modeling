@@ -51,6 +51,15 @@ selectNetworkWithLowerNrUsers <- function(news.user.df, lowerBound=1, upperBound
     return(minRow$fakeNewsId)
 }
 
+computeQualityMetric <- function(fitted, real){
+    n = length(fitted)
+    numerator = (1/n) * sum((fitted - real)**2)
+    denom = var(real)
+    
+    q = numerator/denom
+    return(q)
+}
+
 #-------------------------
 ###### --- SIMS  --- #######
 #-------------------------
@@ -137,8 +146,9 @@ chooseFittingBetaForBaseline <- function(fakeNewsId, news.user.df) {
     
     ## Choosing fitting beta
     infected.originally = nrow(news.user.df[news.user.df$FakeNewsId == fakeNewsId,])
+    g = createFakeNewsSubgraphFromId(news.user.df, fakeNewsId)
     thres.break.40 <- infected.originally + infected.originally*0.2 # Threshold of +0.2% nodes extra to stop
-    betas = c(0.001, 0.005); betas = append(betas, seq(0.01, 0.1, by = 0.005))
+    betas = c(0.001, 0.005); betas = append(betas, seq(0.01, 0.1, by = 0.005)) 
     avg.infect <- c()
     pb <- 1
     for (beta in betas){
@@ -164,6 +174,8 @@ chooseFittingBetaForBaseline <- function(fakeNewsId, news.user.df) {
     cat(" * Best beta: ", minDiffRow$betas, "\n")
     cat(" * Avg. inf. : " , minDiffRow$avg.infect,"\n")
     cat(" * Org. nr. inf: ", infected.originally, "\n")
+    
+    return(list(minDiffRow$betas[1], minDiffRow$avg.infect[1]))
 }
 
 

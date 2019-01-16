@@ -40,7 +40,27 @@ tmax=48
 beta=0.075
 set.seed(2)
 inf <- simulateSIBaseline(g, tmax, beta, T)
-chooseFittingBetaForBaseline(4, news.user.df)
+
+## Comparison
+
+if(F){
+    
+real.infected = c()
+fit.infected = c()
+for (fn in 10:19) {
+    inf.real.fn = nrow(news.user.df[news.user.df$FakeNewsId == fn,])
+    real.infected = append(real.infected, inf.real.fn)
+    res = chooseFittingBetaForBaseline(fn, news.user.df)    
+    res.inf = res[2]
+    
+    fit.infected = append(fit.infected, res.inf)
+}
+
+}
+
+real.infected = c(26, 32, 44, 66, 32, 166, 24, 179, 33, 44)
+fit.infected = c(3.0, 3.1, 38.1, 3.0, 3.0, 3.0, 6.9, 234.2, 42.4, 33.1)
+q.baseline = computeQualityMetric(fit.infected, real.infected)
 
 # Baseline plot
 plot(1:49, inf, main="Baseline infected evo., beta = 0.03, fake news = 4", xlab="t", ylab ="# infected nodes")
