@@ -25,15 +25,30 @@ names(news.user.df) <- c("FakeNewsId", "SharedBy", "Times shared") # Do we need 
 
 # Construct whole network user-user
 users.graph = graph_from_data_frame(user.user.df, directed=F) # For simplicity, we are going to work with an undirected graph.
-is.connected(users.graph) # Wasn't it supposed to be fully connected?
 
 
 
 
-
+if(FALSE){
 fakeNewsId = selectNetworkWithLowerNrUsers(news.user.df, 1, 9)
 fake.news.subgraph = createFakeNewsSubgraphFromId(news.user.df, fakeNewsId)
 
+
+fakeNewsId = 4
+g <- createFakeNewsSubgraphFromId(news.user.df, fakeNewsId)
+tmax=48
+beta=0.075
+set.seed(2)
+inf <- simulateSIBaseline(g, tmax, beta, T)
+chooseFittingBetaForBaseline(4, news.user.df)
+
+# Baseline plot
+plot(1:49, inf, main="Baseline infected evo., beta = 0.03, fake news = 4", xlab="t", ylab ="# infected nodes")
+lines(inf)
+abline(h = 19, col="red", lty=c(2))
+legend("bottomright", legend = c("Infected nodes", "Infected original"),
+       lty = 1, lwd = 2,col = c("black", "red"))
+}
 
 beta = 0.015 # Prob of 10% of getting infected.
 tmax = 48 # Each step is an hour. So tops 48 hours.

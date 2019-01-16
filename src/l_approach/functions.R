@@ -58,7 +58,7 @@ selectNetworkWithLowerNrUsers <- function(news.user.df, lowerBound=1, upperBound
 ###### --- v.1  --- #######
 ## Just a baseline. 
 ##  - Infects 3 nodes at the start randomly.
-##  - Uses a uniform distribution to determine whether to infect a node or not.
+##  - Uses a static beta that establishes whether to infect a user or not.
 simulateSIBaseline <- function(g, tmax, beta, verbose=F) {
     # Given a graph, a maximum time and a beta, performs an SI simulation.
     # It picks 3 random nodes as infected.
@@ -66,12 +66,22 @@ simulateSIBaseline <- function(g, tmax, beta, verbose=F) {
     
     ts = 1:tmax
     
+    beta.damp.func <- function(){
+        beta <- c()
+        for (t in 1:48) {
+            beta <- append(beta, exp(1-(0.1*t)))
+        }
+        return(beta)
+    }
+    beta.damp = beta.damp.func()
+    beta.damp = beta.damp/max(beta.damp)
+    #plot(1:48, beta.damp, main = "Beta damping factor (lambda)", xlab = "t", ylab = "lambda", xlim = c(1, 48))
+    #lines(beta.damp)
+    
+    
     edgelist <- as.data.frame(as_edgelist(g), stringsAsFactors = F)
     E = length(E(g))
     N = length(V(g))
-    
-    set.seed(321)
-    nums = runif(tmax * E, 0, 1)
     
     # Start with infected nodes
     p = 3
@@ -82,37 +92,81 @@ simulateSIBaseline <- function(g, tmax, beta, verbose=F) {
     # Data frame with vertices id, since they are identified already.
     vertices.infected = data.table(vId = as.numeric(V(g)$name), infected)
     
+    nrInfected = c(3)
     # For each timestep...
     for (x in ts) {
         
+        beta.t <- beta.damp[x] * beta
         inf.prev.step <- vertices.infected[vertices.infected$infected == TRUE,]$vId
         
         # For each infected
-        x.i <- 1 # subindex to get random prob.
         for (inf in inf.prev.step) {
             
             # we get the susceptibles related to the infected
             v.susceptible.1 = edgelist[edgelist$V1 == inf, ]$V2
             v.susceptible.2 = edgelist[edgelist$V2 == inf, ]$V1
-            v.susc <- append(v.susceptible.1, v.susceptible.2)
+            v.susc <- append(v.susceptible.1, v.susceptible.2); v.susc = unique(v.susc)
             
-            # Try to infect them if not infected
-            for(vs in v.susc){
-                alpha = nums[x * x.i]
-                if(!vertices.infected[vertices.infected$vId == vs,]$infected & alpha <= beta){
-                    vertices.infected[vertices.infected$vId == vs,]$infected = TRUE
-                }
-                x.i <- x.i + 1
+            # Try to infect all the susceptible ones.
+             nr.v.infect.at.x = floor(beta.t * length(v.susc))
+            #nr.v.infect.at.x = floor(beta.t * N) # Take beta prop. of susc nodes to infect
+            #nr.v.infect.at.x = min(length(v.susc), nr.v.infect.at.x)
+            v.infect.at.x = sample(v.susc, nr.v.infect.at.x, prob = NULL)
+            
+            for (to.infect in v.infect.at.x){
+                vertices.infected[vertices.infected$vId == to.infect, ]$infected = TRUE
             }
-            
         }
         
         if(verbose){
             cat("It", x, ", nr. infected: ", nrow(vertices.infected[vertices.infected$infected == T,]), "/", N,"\n")   
         }
+        currInf <-  nrow(vertices.infected[vertices.infected$infected == T,])
+        nrInfected <- append(nrInfected, currInf)
+        if(currInf == N){
+            cat("All nodes infected. Stopping. \n")
+            break
+        }
     }
+    return(nrInfected)
     
 }
+
+
+chooseFittingBetaForBaseline <- function(fakeNewsId, news.user.df) {
+    
+    ## Choosing fitting beta
+    infected.originally = nrow(news.user.df[news.user.df$FakeNewsId == fakeNewsId,])
+    thres.break.40 <- infected.originally + infected.originally*0.2 # Threshold of +0.2% nodes extra to stop
+    betas = c(0.001, 0.005); betas = append(betas, seq(0.01, 0.1, by = 0.005))
+    avg.infect <- c()
+    pb <- 1
+    for (beta in betas){
+        set.seed(2)
+        progressBar(pb, length(betas))
+        nrInfected.10 <- c()
+        for(x in 1:10){
+            infected.progression <- simulateSIBaseline(g, tmax, beta, F)
+            nrInfected.10 <- append(nrInfected.10, infected.progression[length(infected.progression)])
+        }
+        avg.infect <- append(avg.infect, mean(nrInfected.10))
+        pb <- pb + 1
+        if(mean(nrInfected.10) >= thres.break.40){
+            print("More than 120% of nodes. No need to up beta")
+            break
+        }
+    }
+    avg.infect <- append(avg.infect, rep(9999, length(betas) - length(avg.infect))) 
+    df = data.frame(betas, avg.infect,  diff=abs(avg.infect - infected.originally))
+    #print(df)
+    minDiffRow <- df[min(df$diff) == df$diff,]
+    cat(" ---------------- \n")
+    cat(" * Best beta: ", minDiffRow$betas, "\n")
+    cat(" * Avg. inf. : " , minDiffRow$avg.infect,"\n")
+    cat(" * Org. nr. inf: ", infected.originally, "\n")
+}
+
+
 
 ###### --- v.2  --- #######
 ## Assumes fake news efficiency on spreading follows a distrubtion, with a peak
@@ -207,8 +261,9 @@ simulateSI <- function(g, tmax, beta, fakeNewsId, news.user.df, verbose=F) {
             v.susc <- append(v.susceptible.1, v.susceptible.2); v.susc = unique(v.susc)
             
             # Purge them until they are all not infected
-            non.infected.prev <- vertices.infected[vertices.infected$infected == FALSE,]$vId
-            v.susc = v.susc[v.susc  %in% non.infected.prev] # Keeping only those nodes that are not yet infected
+            # TODO: Check this.
+            # non.infected.prev <- vertices.infected[vertices.infected$infected == FALSE,]$vId
+            # v.susc = v.susc[v.susc  %in% non.infected.prev] # Keeping only those nodes that are not yet infected
             
             nr.v.infect.at.x = floor(beta.t * length(v.susc)) # Take beta prop. of susc nodes to infect
             v.infect.at.x = sample(v.susc, nr.v.infect.at.x, prob = NULL)

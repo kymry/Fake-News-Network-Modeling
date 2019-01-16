@@ -1,0 +1,49 @@
+# Network global evaluation/analysis
+
+# Set WD and load data
+wd = getwd()
+if(grepl("nora", wd)) {
+    setwd("~/git/fake-news-project/src/l_approach")
+} else {
+    # Set anyone's else project directory path, if needed be.
+    #setwd()
+}
+rm(wd)
+source("config.R")
+
+user.user.df <- read.delim("../../data/PolitiFactUserUser.txt", header=FALSE)
+news.user.df <- read.delim("~/git/fake-news-project/data/PolitiFactNewsUser.txt", header=FALSE)
+
+computeSummaryTableForGraph <- function(g){
+    
+    
+    table <- data.table(
+                        "N" = numeric(),
+                        "E" = numeric(),
+                        "k" = numeric(),
+                        "delta" = numeric(),
+                        stringsAsFactors = FALSE)
+    
+    
+    E = length(E(g))
+    N = length(V(g))
+    k = 2*E/N
+    delta = 2*E/(N * (N-1))
+    
+    table <- rbind(table, list( N, E, round(k, 2), round(delta, 6)))
+    
+    return(table)
+}
+
+names(news.user.df) <- c("FakeNewsId", "SharedBy", "Times shared") # Do we need the times shared?
+
+
+# Construct whole network user-user
+users.graph = graph_from_data_frame(user.user.df, directed=F) # For simplicity, we are going to work with an undirected graph.
+
+computeSummaryTableForGraph(users.graph)
+
+ds = degree(users.graph)
+ds = as.vector(ds)
+length(ds[ds == 0])
+hist(ds, main='Graph degree distribution', xlab = "k", ylab = "Frequency", breaks = 100, col = "black")
