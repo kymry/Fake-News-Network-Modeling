@@ -27,7 +27,7 @@ userUser <- as.matrix(read.table('PolitiFact/PolitiFactUserUser.txt', col.names=
 #-------- Set News Article Data Structures --------#
 
 # set news id here
-currentNewsId = 4
+currentNewsId = 30
 
 # extract users who shared fake news (news id = 4)
 shared <- newsUser[newsUser$newsId==currentNewsId,2]
@@ -50,9 +50,27 @@ infectList <- numeric(length(V(userSubgraph)))
 infected <- shared[1:4,1]
 for(i in 1:4){infectList[shared[i]] = 1}
 
+
+#-------- Simulate Epidemic --------#
+
+# get best beta
+efficiency <- getEfficiencyBeta()
+bestBeta <- findBestBeta(efficiency, 0.5, 48)
+
+# get infected/susceptible ratio
+ratio <- spreadReturnRatioInfSus(efficiency, 0.195, 0.5, 48, infectList, adj, infected, ratio) 
+
+# get infected list spread(beta, alpha, hours, ds to hold infected, adj matrix of network, starting infected)
+efficiency <- getEfficiencyBeta()
+infectList <- spread(efficiency, 0.1, 0.5, 48, infectList, adj, infected)
+
+# get number of infected after simulation
+numInfected <- spreadReturnNumInfected(efficiency, 0.1472, 0.5, 48, infectList, adj, infected)
+
+
 #-------- simulate an epidemic --------#
 
-# determines if user becomes infected
+# determines if a user becomes infected
 infect <- function(b, a, id, infectList, adj){
 
         # check if already infected
@@ -146,7 +164,32 @@ spreadReturnNumInfected <- function(efficiency, b, a, t, infectList, adj, infect
   
 }
 
-#-------- Simulate Epidemic - Find Best Fit Beta --------#
+# simulates SI variation and returns the ratio of infected/susceptible
+spreadReturnRatioInfSus <- function(efficiency, b, a, t, infectList, adj, infected, vec){
+  
+  # for 48 time steps
+  for(time in 1:t){
+    newInfectList = c()
+    
+    # for each infected 
+    for(i in 1:length(infected)){
+      n = myunlist(adj[infected[i]])
+      # for each neighbor of infected
+      for (j in 1:length(n)){
+        newInfectList = c(newInfectList,infect(efficiency[i]*b, a, n[j], infectList, adj)) # change to a/time to scale a dynamicallys
+      }
+      
+    }
+    for(i in 1:length(newInfectList)){ 
+      infectList[newInfectList[i]] = 1 
+    }
+    vec <- c(vec, sum(infectList)/length(infectList))
+  }
+  
+  # return total number of infected
+  return(vec)
+  
+}
 
 # finds the best fit beta for a given fake news article
 findBestBeta <- function(efficiency, alpha, hours){
@@ -157,40 +200,40 @@ findBestBeta <- function(efficiency, alpha, hours){
   for(i in 1:4){infectList[shared[i]] = 1}
   
   # set range of beta to search
-  betaRange <- seq(0.02, 0.4, by = 0.05)
+  betaRange <- seq(0.02, 0.5, by = 0.025)
   
-  actualInfected <- length(shared)
+  actualInfected <- length(shared)/2
   difference <- 100000
   bestBeta <- 0
   
   # find best beta
   for (i in betaRange){
+    
     numInfected <- spreadReturnNumInfected(efficiency, i, alpha, hours, infectList, adj, infected)
     if (abs(actualInfected - numInfected) < difference){
       bestBeta <- i
       difference <- abs(actualInfected - numInfected)
     }
+    
     print(abs(actualInfected - numInfected))
+    print(bestBeta)
+    print("-----")
+    
+    if ( difference <= 1){
+      return(bestBeta)
+    }
   }
   
   return(bestBeta)
 }
 
 
-
-#-------- Simulate Epidemic --------#
-
-# spread (beta, alpha, hours, ds to hold infected, adj matrix of network, starting infected)
-efficiency <- getEfficiencyBeta()
-infectList <- spread(efficiency, 0.1, 0.8, 48, infectList, adj, infected)
-
-# get best beta
-efficiency <- getEfficiencyBeta()
-bestBeta <- findBestBeta(efficiency, 0.5, 48)
-
-
-
+--------------------------------------
+--------------------------------------
 #-------- Auxilary Functions --------#
+--------------------------------------
+--------------------------------------
+  
 myunlist <- function(l){
   names <- names(l)
   vec <- unlist(l, F, F)
@@ -211,10 +254,12 @@ getEfficiencyBeta <- function(tmax=48){
 }
 
 
-
-
+----------------------------
+----------------------------
 #-------- Graphics --------#
-
+----------------------------
+----------------------------
+  
 plotEfficiencyKymry <- function(tmax=48){
   # Kymry's understanding of the effectives of fake news spread over time
   # Peak is around the 24 hour mark 
@@ -284,3 +329,53 @@ progressBar <- function(current, upperBound){
   voidStr = str_c(rep(".", voidBound), collapse="")
   print(paste(currentStr, voidStr, " [", current, "/", upperBound, "]", sep = ""))
 }
+
+
+plotBetaInfectedCompare  <- function(){
+  
+  beta <- c(0.12, 0.12, 0.195, 0.095, 0.195, 0.07, 0.045, 0.195, 0.22, 0.245, 0.12)
+  infected <- c(24, 32, 43, 62,  31, 160, 24, 33, 42,  11, 170)
+  df <- data.frame(beta, infected)
+  df <- df[order(df$infected),,drop=TRUE]
+  
+  ggplot(df, aes(x = infected, y = beta)) +
+    theme_minimal() +
+    geom_line(size=0.5, color="#00AFBB") +
+    geom_point(size = 0.5,show.legend = TRUE) +
+    labs(title="Best Fit Beta per Fake News Article", y="beta", x="number of infected at t=48")+
+    theme(plot.title = element_text(hjust = 0.5), axis.text.x = element_text(angle = 90, hjust = 1) )
+}
+
+plotRatioSimInf  <- function(){
+  
+  news10 <- c(0.12, 0.12, 0.195, 0.095, 0.195, 0.07, 0.045, 0.195, 0.22, 0.245, 0.12)
+  infected <- c(24, 32, 43, 62,  31, 160, 24, 33, 42,  11, 170)
+  df <- data.frame(beta, infected)
+  df <- df[order(df$infected),,drop=TRUE]
+  
+  ggplot(df, aes(x = infected, y = beta)) +
+    theme_minimal() +
+    geom_line(size=0.5, color="#00AFBB") +
+    geom_point(size = 0.5,show.legend = TRUE) +
+    labs(title="Best Fit Beta per Fake News Article", y="beta", x="number of infected at t=48")+
+    theme(plot.title = element_text(hjust = 0.5), axis.text.x = element_text(angle = 90, hjust = 1) )
+}
+
+plotRatioSimInf  <- function(){
+  
+  news10 <- ratio[1:48]
+  news11 <- ratio[49:96]
+  df <- data.frame(cbind(news10, news11))
+  df <- melt(df)
+  df <- cbind(df, time=1:48)
+  
+  # plot ratio of infected/susceptible
+  ggplot(df, aes(y=value, x=time, color=variable)) +
+    geom_line(size=0.5) +
+    theme_minimal()+
+    labs(title="Ratio of Infected/Susceptible", y="ratio", x="time (hours)")+
+    theme(plot.title = element_text(hjust = 0.5), axis.text.x = element_text(angle = 90, hjust = 1) )+
+    scale_color_hue(labels = c("Fake News 1", "Fake news 2"), name="")
+    
+}
+
