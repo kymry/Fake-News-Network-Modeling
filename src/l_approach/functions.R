@@ -280,7 +280,7 @@ selectSourceOfFakeNews <- function(fakeNewsId, g, n, news.user.df){
     
     ## TODO: Try to take into account the number of times a user has shared some fake news?
     if(n > 2){
-        n.top <- floor((n*2)/3)    
+        n.top <- floor((n)/3)    
         toInfect <- degree.df[1:n.top, ]$vId # Most well connected vertices to infect
         n.rand <- n - n.top # Pick last rand nodes to reach n
         v.rand <- sample(degree.df$vId, n.rand, prob=NULL)
@@ -330,10 +330,6 @@ simulateSI <- function(g, tmax, beta, fakeNewsId, news.user.df, verbose=F) {
             v.susc <- append(v.susceptible.1, v.susceptible.2); v.susc = unique(v.susc)
             
             # Purge them until they are all not infected
-            # TODO: Check this.
-            # non.infected.prev <- vertices.infected[vertices.infected$infected == FALSE,]$vId
-            # v.susc = v.susc[v.susc  %in% non.infected.prev] # Keeping only those nodes that are not yet infected
-            
             nr.v.infect.at.x = floor(beta.t * length(v.susc)) # Take beta prop. of susc nodes to infect
             v.infect.at.x = sample(v.susc, nr.v.infect.at.x, prob = NULL)
             
@@ -366,16 +362,18 @@ chooseFittingBeta <- function(fakeNewsId, news.user.df) {
     
     ## Choosing fitting beta
     infected.originally = nrow(news.user.df[news.user.df$FakeNewsId == fakeNewsId,])
+    g = createFakeNewsSubgraphFromId(news.user.df, fakeNewsId)
+    tmax = 48
     thres.break.40 <- infected.originally + infected.originally*0.2 # Threshold of +0.2% nodes extra to stop
-    betas = c(0.001, 0.005); betas = append(betas, seq(0.01, 0.03, by = 0.0005))
+    betas = c(0.001, 0.005); betas = append(betas, seq(0.001, 0.03, length.out = 15))
     avg.infect <- c()
     pb <- 1
     for (beta in betas){
         set.seed(123)
         progressBar(pb, length(betas))
         nrInfected.10 <- c()
-        for(x in 1:10){
-            infected.progression <- simulateSI(fake.news.subgraph, tmax, beta, fakeNewsId, news.user.df, F)
+        for(x in 1:1){ #TODO CHANGE BACK TO 10
+            infected.progression <- simulateSI(g, tmax, beta, fakeNewsId, news.user.df, F)
             nrInfected.10 <- append(nrInfected.10, infected.progression[length(infected.progression)])
         }
         avg.infect <- append(avg.infect, mean(nrInfected.10))
@@ -412,7 +410,7 @@ plotEfficiencyFakeNews <- function(tmax=48){
     ggplot(data = df) +
         aes(x = x, y = y) +
         geom_line(color = '#e31a1c') +
-        labs(title = 'Beta evolution over time',
+        labs(title = 'Beta damping factor (lambda) over time',
              x = 'time (hours)',
              y = 'Infection probability',
              subtitle = '(Efficiency of spread of fake news as time progresses)') +
@@ -463,4 +461,102 @@ plotEvolution  <- function(nrInfected, N, title){
     grid()
     legend("topright", legend = c("Infected", "Susceptible"),
            lty = 1, lwd = 2,col = c("red", "blue"))
+}
+
+
+######### MITIGATION
+
+simulateSIWithMitigation <- function(g, tmax, beta, fakeNewsId, news.user.df, verbose=F) {
+    # Given a graph, a maximum time and a beta, performs an SI simulation.
+    ts = 1:tmax
+    
+    infected.originally = nrow(news.user.df[news.user.df$FakeNewsId == fakeNewsId,])
+    edgelist <- as.data.frame(as_edgelist(g), stringsAsFactors = F)
+    E = length(E(g))
+    N = length(V(g))
+    
+    efficiency <- getEfficiencyOfFakeNews(tmax) # Consider this as an inverse damping factor.
+    efficiencyTrueNews <- getEfficiencyOfTrueNews(tmax)
+    
+    # New: Mitigation! Users that are immune to the fake news!
+    vertices.infected.imm = data.table(vId = as.numeric(V(g)$name), infected = rep(FALSE, N), immune = rep(FALSE, N))
+    nToInfect <- 3
+    vToInfect <- selectSourceOfFakeNews(fakeNewsId, g, nToInfect, news.user.df)
+    
+    #Infect them
+    for (vi in vToInfect) {
+        vertices.infected.imm[vertices.infected.imm$vId == vi, ]$infected = TRUE        
+    }
+    
+    # Compute centralization degrees of all nodes
+    centr.degree = centralization.degree(g, mode = "all")
+    degree.df <- data.table(vId = as.numeric(V(g)$name), degree=centr.degree$res)
+    degree.df <- degree.df[order(-degree.df$degree),] # Order descendingly by degree
+    
+    # For each timestep...
+    nrInfected = c(0)
+    nrImmune = c(0)
+    for (x in ts) {
+        
+        beta.t <- efficiency[x]*beta
+        beta.imm.t <- efficiencyTrueNews[x]*beta
+        inf.prev.step <- vertices.infected.imm[vertices.infected.imm$infected == TRUE,]$vId
+        
+        # For each infected
+        for (inf in inf.prev.step) {
+            
+            # we get the susceptibles related to the infected
+            v.susceptible.1 = edgelist[edgelist$V1 == inf, ]$V2
+            v.susceptible.2 = edgelist[edgelist$V2 == inf, ]$V1
+            # Susceptible without taking into account if they are infected or not
+            v.susc <- append(v.susceptible.1, v.susceptible.2); v.susc = unique(v.susc)
+            
+            ### 1. INFECT
+            # Infect nodes
+            nr.v.infect.at.x = floor(beta.t * length(v.susc)) # Take beta prop. of susc nodes to infect
+            v.infect.at.x = sample(v.susc, nr.v.infect.at.x, prob = NULL)
+            
+            for (to.infect in v.infect.at.x){
+                # 1.2 Infect only those that are not immunized
+                if(!vertices.infected.imm[vertices.infected.imm$vId == to.infect, ]$immune){
+                    vertices.infected.imm[vertices.infected.imm$vId == to.infect, ]$infected = TRUE    
+                }
+                
+            }
+            
+            ### 2. IMMUNIZE
+            # We get again those that are not infected and not immune yet
+            non.infected.immune.prev <- vertices.infected.imm[vertices.infected.imm$infected == FALSE & vertices.infected.imm$immune == FALSE,]$vId
+            
+            # Immunize nodes
+            nr.v.imm.at.x = floor(beta.imm.t * length(non.infected.immune.prev)) # Take beta prop. of susc nodes to infect
+            v.imm.at.x = subset(degree.df, degree.df$vId %in% non.infected.immune.prev) # Immunize those with higher degree
+            v.imm.at.x = v.imm.at.x$vId[1:nr.v.imm.at.x]
+            
+            for (to.imm in v.imm.at.x){
+                vertices.infected.imm[vertices.infected.imm$vId == to.infect, ]$immune = TRUE
+            }
+        }
+        
+        if(verbose){
+            cat("It", x, ", beta.t:", beta.t, ", nr. infected: ", nrow(vertices.infected.imm[vertices.infected.imm$infected == T,]), "/", N,"\n")   
+            cat("It", x, ", beta.t:", beta.t, ", nr. immune: ", nrow(vertices.infected.imm[vertices.infected.imm$immune == T,]), "/", N,"\n")   
+            cat("-----------\nInfected originally: ", infected.originally, "\n")   
+        }
+        currInf <-  nrow(vertices.infected.imm[vertices.infected.imm$infected == T,])
+        currImm <-  nrow(vertices.infected.imm[vertices.infected.imm$immune == T,])
+        nrInfected <- append(nrInfected, currInf)
+        nrImmune <- append(nrImmune, currImm)
+        
+        if(beta.t < 0.001){
+            remaining = tmax - x
+            nrInfected <- append(nrInfected, rep(currInf, remaining))
+            nrImmune <- append(nrImmune, rep(currImm, remaining))
+            if(verbose){
+                cat(" *** \n beta.t < 0.001. Stopping. \n")       
+            }
+            break
+        }
+    }
+    return(list(nrInfected, nrImmune))
 }
