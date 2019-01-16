@@ -14,19 +14,15 @@ source("functions.R")
 ########################
 
 # Load data
-# news.names <- read.table("../../data/News.txt", quote="\"", comment.char=""); news.names <- news.names$V1
-# user.names <- read.table("../../data/User.txt", quote="\"", comment.char=""); user.names <- user.names$V1
 user.user.df <- read.delim("../../data/PolitiFactUserUser.txt", header=FALSE)
 news.user.df <- read.delim("~/git/fake-news-project/data/PolitiFactNewsUser.txt", header=FALSE)
 
 # Set cols names
-names(news.user.df) <- c("FakeNewsId", "SharedBy", "Times shared") # Do we need the times shared?
+names(news.user.df) <- c("FakeNewsId", "SharedBy", "Times shared") 
 
 
 # Construct whole network user-user
 users.graph = graph_from_data_frame(user.user.df, directed=F) # For simplicity, we are going to work with an undirected graph.
-
-
 
 
 if(FALSE){
@@ -47,27 +43,63 @@ if(F){
     
 real.infected = c()
 fit.infected = c()
+betas = c()
 for (fn in 10:19) {
     inf.real.fn = nrow(news.user.df[news.user.df$FakeNewsId == fn,])
     real.infected = append(real.infected, inf.real.fn)
     res = chooseFittingBetaForBaseline(fn, news.user.df)    
     res.inf = res[2]
-    
+    beta.r = res[1]
     fit.infected = append(fit.infected, res.inf)
+    betas= append(betas, beta.r)
 }
 
 }
 
-real.infected = c(26, 32, 44, 66, 32, 166, 24, 179, 33, 44)
-fit.infected = c(3.0, 3.1, 38.1, 3.0, 3.0, 3.0, 6.9, 234.2, 42.4, 33.1)
 q.baseline = computeQualityMetric(fit.infected, real.infected)
 
-# Baseline plot
-plot(1:49, inf, main="Baseline infected evo., beta = 0.03, fake news = 4", xlab="t", ylab ="# infected nodes")
-lines(inf)
-abline(h = 19, col="red", lty=c(2))
-legend("bottomright", legend = c("Infected nodes", "Infected original"),
-       lty = 1, lwd = 2,col = c("black", "red"))
+best.betas = c(0.08, 0.04, 0.035, 0.1, 0.06, 0.08, 0.035, 0.04, 0.1)
+beta.avg.baseline = mean(best.betas)
+
+simulateBaselineForIds <- function(news.user.df, beta, ids) {
+  
+    ratios = list()
+    for(id in ids){
+        fakeNewsId = id
+        g <- createFakeNewsSubgraphFromId(news.user.df, fakeNewsId)
+        tmax=48
+        beta=beta.avg.baseline
+        inf <- simulateSIBaseline(g, tmax, beta, T)
+        ratios = append(ratios, (inf / (length(V(g)) - inf)))
+    }
+    return(ratios)
+  
+}
+set.seed(42)
+res = simulateBaselineForIds(news.user.df, beta.avg.baseline, c(1, 2))
+ratio1=res[1:49]
+ratio2=res[50:98]
+plotRatioSimInfBaseline(ratio1, ratio2)
+
+
+news.test.id <- c(25, 26, 28, 29, 31, 32, 41, 42, 43, 44)
+real.infected = c()
+fit.infected = c()
+for (fn in news.test.id) {
+    inf.real.fn = nrow(news.user.df[news.user.df$FakeNewsId == fn,])
+    g <- createFakeNewsSubgraphFromId(news.user.df, fn)
+    real.infected = append(real.infected, inf.real.fn)
+    res.inf <- simulateSIBaseline(g, tmax, beta.avg.baseline, T)
+    fit.infected = append(fit.infected, res.inf[length(res.inf)])
+}
+
+# 
+# # Baseline plot
+# plot(1:49, inf, main="Baseline infected evo., beta = 0.03, fake news = 4", xlab="t", ylab ="# infected nodes")
+# lines(inf)
+# abline(h = 19, col="red", lty=c(2))
+# legend("bottomright", legend = c("Infected nodes", "Infected original"),
+#        lty = 1, lwd = 2,col = c("black", "red"))
 }
 
 beta = 0.015 # Prob of 10% of getting infected.

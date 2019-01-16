@@ -60,6 +60,63 @@ computeQualityMetric <- function(fitted, real){
     return(q)
 }
 
+
+plotModelTestBaseline <- function(){
+    
+    Real <- c(13, 90, 27, 35, 65, 12, 56, 100, 25, 77 )
+    Model <- c(3, 3, 7520, 3, 3, 3, 7796, 3, 3, 3)
+    
+    
+    news <- c('25', '26', '28', '29', '31', '32', '41', '42', '43', '44')
+    
+    df <- data.frame(Real, Model, news)
+    df <- melt(df, id.vars='news')
+    head(df)
+    
+    ggplot(df, aes(x=news, y=value, fill=variable)) +
+        theme_minimal()+
+        geom_bar(stat='identity', position='dodge')+
+        labs(title="Infected Nodes - Baseline model results vs. Real Data", y="number of infected (at t=48)", x="fake news article id")+
+        theme(plot.title = element_text(hjust = 0.5), axis.text.x = element_text(angle = 90, hjust = 1) )+
+        guides(fill=guide_legend(title="", values = c("Actual infected", "Simulated Infected") ))
+    
+}
+plotModelTestBaseline()
+
+
+
+plotBetaInfectedCompareBaseline  <- function(){
+    
+    beta <- c(0.08, 0.04, 0.035, 0.1, 0.06, 0.08, 0.035, 0.01, 0.04, 0.1)
+    infected <- c(26, 32, 44, 66, 32, 166, 24, 179, 33, 44)
+    df <- data.frame(beta, infected)
+    df <- df[order(df$infected),,drop=TRUE]
+    
+    ggplot(df, aes(x = infected, y = beta)) +
+        theme_minimal() +
+        geom_line(size=0.5, color="#00AFBB") +
+        geom_point(size = 0.5,show.legend = TRUE) +
+        labs(title="Best Fit Beta per Fake News Article on Baseline model", y="beta", x="number of infected at t=48")+
+        theme(plot.title = element_text(hjust = 0.5), axis.text.x = element_text(angle = 90, hjust = 1) )
+}
+
+
+plotRatioSimInfBaseline  <- function(ratio1, ratio2){
+    
+    df <- data.frame(cbind(r1 = ratio1,r2= ratio2)) #, time = as.character(1:49)))
+#    df <- melt(df,  id.vars='time')
+    df <- cbind(df, time=1:49)
+    
+    # plot ratio of infected/susceptible
+    ggplot(df, aes(y=r1, x=time)) +
+        geom_line(size=0.5, col='blue') +
+        theme_minimal()+
+        labs(title="Ratio of Infected/Susceptible Baseline", y="ratio", x="time (hours)")+
+        theme(plot.title = element_text(hjust = 0.5), axis.text.x = element_text(angle = 90, hjust = 1) )+
+        scale_color_hue(labels = c("Fake News 1", "Fake news 2"), name="")
+    
+}
+
 #-------------------------
 ###### --- SIMS  --- #######
 #-------------------------
