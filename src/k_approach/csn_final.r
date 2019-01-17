@@ -27,7 +27,7 @@ userUser <- as.matrix(read.table('PolitiFact/PolitiFactUserUser.txt', col.names=
 #-------- Set News Article Data Structures --------#
 
 # set news id here
-currentNewsId = 20
+currentNewsId = 177
 
 # extract users who shared fake news (news id = 4)
 shared <- newsUser[newsUser$newsId==currentNewsId,2]
@@ -35,7 +35,7 @@ shared <- newsUser[newsUser$newsId==currentNewsId,2]
 # obtain subgraph from user network
 userGraph <- graph_from_edgelist(userUser, directed=FALSE)
 vertex_attr(userGraph, "label", index = shared) <- 9 
-userSubGraphNodes <- unique(unlist(ego(userGraph, order=2, nodes=shared)))
+userSubGraphNodes <- unique(unlist(ego(userGraph, order=1, nodes=shared)))
 userSubgraph <- simplify(induced_subgraph(userGraph, vids = userSubGraphNodes))
 shared <- which(V(userSubgraph)$label == 9)
 
@@ -49,13 +49,14 @@ adj <- as_adj_list(userSubgraph)
 infectList <- numeric(length(V(userSubgraph)))
 infected <- shared[1:4,1]
 for(i in 1:4){infectList[shared[i]] = 1}
-
+length(V(userSubgraph))
+shared
 
 #-------- Simulate Epidemic --------#
 
 # get best beta
 efficiency <- getEfficiencyBeta()
-bestBeta <- findBestBeta(efficiency, 0.5, 48)
+bestBetaFinal <- findBestBeta(efficiency, 0.5, 48)
 
 # get infected/susceptible ratio
 ratio <- spreadReturnRatioInfSus(efficiency, 0.195, 0.5, 48, infectList, adj, infected, ratio) 
@@ -65,7 +66,7 @@ efficiency <- getEfficiencyBeta()
 infectList <- spread(efficiency, 0.1, 0.5, 48, infectList, adj, infected)
 
 # get number of infected after simulation
-numInfected <- spreadReturnNumInfected(efficiency, 0.1472, 0.5, 48, infectList, adj, infected)
+numInfected <- spreadReturnNumInfected(efficiency, 0.0533, 0.5, 48, infectList, adj, infected)
 
 
 #-------- simulate an epidemic --------#
@@ -195,6 +196,7 @@ spreadReturnRatioInfSus <- function(efficiency, b, a, t, infectList, adj, infect
 findBestBeta <- function(efficiency, alpha, hours){
   
   finalBeta <- 0
+  finalInfected <- 0
   
   for (j in 1:10){
     
@@ -204,7 +206,7 @@ findBestBeta <- function(efficiency, alpha, hours){
         for(i in 1:4){infectList[shared[i]] = 1}
         
         # set range of beta to search
-        betaRange <- seq(0.02, 0.5, by = 0.025)
+        betaRange <- seq(0.02, 0.3, by = 0.025)
         
         actualInfected <- length(shared)/2
         difference <- 100000
@@ -217,6 +219,7 @@ findBestBeta <- function(efficiency, alpha, hours){
           if (abs(actualInfected - numInfected) < difference){
             bestBeta <- i
             difference <- abs(actualInfected - numInfected)
+            bestInfected <- numInfected
           }
           
           print(abs(actualInfected - numInfected))
@@ -225,12 +228,22 @@ findBestBeta <- function(efficiency, alpha, hours){
           
           if ( difference <= 1){
             finalBeta <- finalBeta + bestBeta
-            next
+            finalInfected <- finalInfected + bestInfected
+            break
+          }
+          if (abs(actualInfected - numInfected) > 100){
+            finalBeta <- finalBeta + bestBeta
+            finalInfected <- finalInfected + bestInfected
+            break
           }
         }
   }
-  return(finalBeta/10)
+  vec1 <- c(finalBeta/3, finalInfected/3)
+  return(vec1)
+  #return(bestBeta)
 }
+
+
 
 
 --------------------------------------
@@ -338,8 +351,9 @@ progressBar <- function(current, upperBound){
 
 plotBetaInfectedCompare  <- function(){
   
-  beta <- c(0.12, 0.12, 0.195, 0.095, 0.195, 0.07, 0.045, 0.195, 0.22, 0.245, 0.12)
-  infected <- c(24, 32, 43, 62,  31, 160, 24, 33, 42,  11, 170)
+  beta <- c(0.12, 0.12, 0.195, 0.095, 0.195, 0.07, 0.045, 0.12, 0.195, 0.22)
+  infected <- c(24, 32, 43, 62,  31, 160, 24, 170, 33, 42)
+  
   df <- data.frame(beta, infected)
   df <- df[order(df$infected),,drop=TRUE]
   
@@ -351,10 +365,10 @@ plotBetaInfectedCompare  <- function(){
     theme(plot.title = element_text(hjust = 0.5), axis.text.x = element_text(angle = 90, hjust = 1) )
 }
 
-plotRatioSimInf  <- function(){
+plotbestBeta  <- function(){
   
-  news10 <- c(0.12, 0.12, 0.195, 0.095, 0.195, 0.07, 0.045, 0.195, 0.22, 0.245, 0.12)
-  infected <- c(24, 32, 43, 62,  31, 160, 24, 33, 42,  11, 170)
+  beta <- c(0.036, 0.045,  0.078, .078, 0.045, 0.07, 0.02, 0.013, 0.045, .103)
+  infected <- c(24,  38, 38, 67, 36, 160, 27,188,  32, 43  )
   df <- data.frame(beta, infected)
   df <- df[order(df$infected),,drop=TRUE]
   
@@ -384,10 +398,29 @@ plotRatioSimInf  <- function(){
     
 }
 
+
+plotRatioSimInf  <- function(){
+  
+  news10 <- ratio[1:48]
+  news11 <- ratio[49:96]
+  df <- data.frame(cbind(news10, news11))
+  df <- melt(df)
+  df <- cbind(df, time=1:48)
+  
+  # plot ratio of infected/susceptible
+  ggplot(df, aes(y=value, x=time, color=variable)) +
+    geom_line(size=0.5) +
+    theme_minimal()+
+    labs(title="Ratio of Infected/Susceptible", y="ratio", x="time (hours)")+
+    theme(plot.title = element_text(hjust = 0.5), axis.text.x = element_text(angle = 90, hjust = 1) )+
+    scale_color_hue(labels = c("Fake News 1", "Fake news 2"), name="")
+  
+}
+
 plotModelTest <- function{
   
-    Real <- c(13, 90, 27, 35, 65, 12, 56, 100, 25, 77 )
-    Model <- c(12, 93, 24,  31, 105, 10, 147, 94, 23,  70)
+    Real <- c(13, 90, 27, 35, 65, 12,56, 100, 25, 77)
+    Model <- c(14, 42, 39, 34, 47, 24, 89, 45, 26, 56 )
     news <- c('25', '26', '28', '29', '31', '32', '41', '42', '43', '44')
     
     df <- data.frame(Real, Model, news)
@@ -402,3 +435,68 @@ plotModelTest <- function{
       guides(fill=guide_legend(title="", values = c("Actual infected", "Simulated Infected") ))
   
 }
+
+plotGraphSize <- function{
+  
+  gSize <- c(176, 2398, 399, 735, 2051, 186, 2313, 2014,  583, 1325)
+  news <- c('25', '26', '28', '29', '31', '32', '41', '42', '43', '44') 
+  
+  df <- data.frame(gSize, news)
+  df <- melt(df, id.vars='news')
+  head(df)
+  
+  ggplot(df, aes(x=news, y=value, fill=variable)) +
+    theme_minimal()+
+    geom_bar(stat='identity', position='dodge')+
+    labs(title="Fake News User Subgraph Size", y="number of nodes", x="fake news article id")+
+    theme(plot.title = element_text(hjust = 0.5), axis.text.x = element_text(angle = 90, hjust = 1) )+
+    guides(fill=FALSE)
+}
+
+
+plotTimeCompare  <- function(){
+  
+  model3 <- c(1.1192, 2.2283, 2.2221, 2.0002, 10.9928, 1.0092, 4.1029,30.2993, 2.0012, 6.2202) 
+  model2 <- c(0.10492182, 2.90344834, 0.11267209, 0.28113031, 0.14145470, 0.05655098, 0.19740319, 8.33758116, 0.13309479, 0.91461468)
+  model1 <- c(0.08845639,  1.20024180,  0.10450482,  0.20301700,  0.10681677,  0.08243585,  0.23237038, 18.25728559,  0.11121535,  0.25872064)
+  newsId <- c('25', '26', '28', '29', '31', '32', '41', '42', '43', '44') 
+  df <- data.frame(cbind(model1, model2,model3))
+  df <- melt(df)
+  df <- cbind(df, newsId)
+  
+  # plot ratio of infected/susceptible
+  ggplot(df, aes(y=value, x=newsId, color=variable, group=variable)) +
+    geom_line(size=0.5) +
+    theme_minimal()+
+    labs(title="Simulation CPU Time (seconds)", y="time (seconds)", x="Fake News Id")+
+    theme(plot.title = element_text(hjust = 0.5), axis.text.x = element_text(angle = 90, hjust = 1) )+
+    scale_color_hue(labels = c("Model 1 (Baseline)", "Model 2", "Model 3"), name="")
+  
+}
+
+## Quality metrics
+
+computeQualityMetric <- function(fitted, real){
+  n = length(fitted)
+  numerator = (1/n) * sum((fitted - real)**2)
+  denom = var(real)
+  
+  q = numerator/denom
+  return(q)
+}
+
+# Baseline
+real.infected = c(13, 90, 27, 35, 65, 12, 56, 100, 25, 77)
+fit.infected = c(3, 6, 12,  8,  3,  3,  3, 3,  3,  3)
+q.baseline = computeQualityMetric(fit.infected, real.infected); q.baseline
+
+#2nd approach
+fit.inf.2nd <- c(9, 138,  18,  29 , 14  , 9 , 18 ,220 , 20 , 40)
+real.inf.2nd <- c(13 , 90,  27,  35,  65,  12,  56, 100,  25 , 77)
+q.2nd = computeQualityMetric(fit.inf.2nd, real.inf.2nd); q.2nd
+
+
+# 3rd approach
+Real <- c(13, 90, 27, 35, 65, 12,56, 100, 25, 77)
+Model <- c(14, 42, 39, 34, 47, 24, 89, 45, 26, 56 )
+q.3rd = computeQualityMetric(Model, Real); q.3rd
