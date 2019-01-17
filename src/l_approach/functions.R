@@ -15,7 +15,7 @@ progressBar <- function(current, upperBound){
 }
 
 
-createFakeNewsSubgraphFromId <- function(news.user.df, fakeNewsId, neighOrder=2, verbose=T) {
+createFakeNewsSubgraphFromId <- function(news.user.df, fakeNewsId, neighOrder=1, verbose=T) {
     # Given a fake news id, user-user network and a neighborhood order, a subgraph is created from the user-user network containing all those infected users + neighbors 2 jumps away.
     
     infected.rows <- news.user.df[news.user.df$FakeNewsId == fakeNewsId,]
@@ -26,7 +26,7 @@ createFakeNewsSubgraphFromId <- function(news.user.df, fakeNewsId, neighOrder=2,
     fake.news.subgraphs.array <- make_ego_graph(users.graph, order=neighOrder, nodes=infected.rows$SharedBy)
     
     fake.news.subgraph = make_empty_graph(directed = F)
-    for (x in length(fake.news.subgraphs.array)) {
+    for (x in 1:length(fake.news.subgraphs.array)) {
         g = fake.news.subgraphs.array[[x]]    
         fake.news.subgraph = fake.news.subgraph + g
     }
@@ -64,7 +64,7 @@ computeQualityMetric <- function(fitted, real){
 plotModelTestBaseline <- function(){
     
     Real <- c(13, 90, 27, 35, 65, 12, 56, 100, 25, 77 )
-    Model <- c(3, 3, 7520, 3, 3, 3, 7796, 3, 3, 3)
+    Model <- c(3, 6, 12,  8,  3,  3,  3, 3,  3,  3)
     
     
     news <- c('25', '26', '28', '29', '31', '32', '41', '42', '43', '44')
@@ -81,14 +81,12 @@ plotModelTestBaseline <- function(){
         guides(fill=guide_legend(title="", values = c("Actual infected", "Simulated Infected") ))
     
 }
-plotModelTestBaseline()
 
 
 
-plotBetaInfectedCompareBaseline  <- function(){
-    
-    beta <- c(0.08, 0.04, 0.035, 0.1, 0.06, 0.08, 0.035, 0.01, 0.04, 0.1)
-    infected <- c(26, 32, 44, 66, 32, 166, 24, 179, 33, 44)
+
+plotBetaInfectedCompareBaseline  <- function(beta, infected){
+   
     df <- data.frame(beta, infected)
     df <- df[order(df$infected),,drop=TRUE]
     
@@ -97,6 +95,23 @@ plotBetaInfectedCompareBaseline  <- function(){
         geom_line(size=0.5, color="#00AFBB") +
         geom_point(size = 0.5,show.legend = TRUE) +
         labs(title="Best Fit Beta per Fake News Article on Baseline model", y="beta", x="number of infected at t=48")+
+        theme(plot.title = element_text(hjust = 0.5), axis.text.x = element_text(angle = 90, hjust = 1) )
+}
+
+plotBestBetaComparisonBaseline  <- function(best.betas, fit.infected, real.infected){
+    
+    df <- data.frame(beta=best.betas, sim.infected = fit.infected, real = real.infected, fakeNewsId=10:19)
+    df <- df[order(df$sim.infected),,drop=TRUE]
+    
+    ggplot(df, aes(x = fakeNewsId, y=infected)) +
+        theme_minimal() +
+        geom_line(aes(y = sim.infected, colour = "sim.infected")) + 
+        geom_line(aes(y = real, colour = "real")) +
+        #geom_line(size=0.5, color="#00AFBB") +
+        #geom_line(x=real.infected, color="red")
+        geom_point(aes(y = sim.infected), size = 0.5,show.legend = TRUE) +
+        geom_point(aes(y = real), size = 0.5,show.legend = TRUE) +
+        labs(title="Comparison Best betas found", y="beta", x="number of infected at t=48")+
         theme(plot.title = element_text(hjust = 0.5), axis.text.x = element_text(angle = 90, hjust = 1) )
 }
 
@@ -201,11 +216,12 @@ simulateSIBaseline <- function(g, tmax, beta, verbose=F) {
 
 chooseFittingBetaForBaseline <- function(fakeNewsId, news.user.df) {
     
+    tmax = 48
     ## Choosing fitting beta
     infected.originally = nrow(news.user.df[news.user.df$FakeNewsId == fakeNewsId,])
     g = createFakeNewsSubgraphFromId(news.user.df, fakeNewsId)
-    thres.break.40 <- infected.originally + infected.originally*0.2 # Threshold of +0.2% nodes extra to stop
-    betas = c(0.001, 0.005); betas = append(betas, seq(0.01, 0.1, by = 0.005)) 
+    thres.break.40 <- 1.2*infected.originally # Threshold of +0.2% nodes extra to stop
+    betas = seq(0.0001, 0.01, length.out = 15); betas = append(betas, seq(0.01, 0.3, length.out = 15))
     avg.infect <- c()
     pb <- 1
     for (beta in betas){
@@ -235,6 +251,67 @@ chooseFittingBetaForBaseline <- function(fakeNewsId, news.user.df) {
     return(list(minDiffRow$betas[1], minDiffRow$avg.infect[1]))
 }
 
+createWeightedSelectionBetas <- function(fitted, real, betas){
+    weights = c()
+    for (x in 1:length(fitted)) {
+        y.hat = fitted[x]
+        y = real[x]
+        
+        num = min(y.hat, y)
+        denom = max(y.hat, y)
+        
+        weights = append(weights, num/denom)   
+    }
+    weights = weights/(sum(weights))
+    return(sum(weights*betas))
+}
+
+
+plotModelTest2ndApproach <- function(Real, Model){
+    
+    news <- c('25', '26', '28', '29', '31', '32', '41', '42', '43', '44')
+    
+    df <- data.frame(Real, Model, news)
+    df <- melt(df, id.vars='news')
+    head(df)
+    
+    ggplot(df, aes(x=news, y=value, fill=variable)) +
+        theme_minimal()+
+        geom_bar(stat='identity', position='dodge')+
+        labs(title="Infected Nodes - Dyn Beta + Degree centr. model results vs. Real Data", y="number of infected (at t=48)", x="fake news article id")+
+        theme(plot.title = element_text(hjust = 0.5), axis.text.x = element_text(angle = 90, hjust = 1) )+
+        guides(fill=guide_legend(title="", values = c("Actual infected", "Simulated Infected") ))
+    
+}
+
+plotBetaInfectedCompare2ndApp  <- function(beta, infected){
+    
+    df <- data.frame(beta, infected)
+    df <- df[order(df$infected),,drop=TRUE]
+    
+    ggplot(df, aes(x = infected, y = beta)) +
+        theme_minimal() +
+        geom_line(size=0.5, color="#00AFBB") +
+        geom_point(size = 0.5,show.legend = TRUE) +
+        labs(title="Best Fit Beta per Fake News Article on 2nd approach model", y="beta", x="number of infected at t=48")+
+        theme(plot.title = element_text(hjust = 0.5), axis.text.x = element_text(angle = 90, hjust = 1) )
+}
+
+
+plotRatioSimApproach  <- function(ratio1, ratio2){
+    
+    df <- data.frame(cbind(r1 = ratio1,r2= ratio2))
+    df <- cbind(df, time=1:49)
+    
+    # plot ratio of infected/susceptible
+    ggplot(df, aes(y=r1, x=time)) +
+        geom_line(aes(y = r1, colour = "r1")) + 
+        geom_line(aes(y = r2, colour = "r2")) +
+        theme_minimal()+
+        labs(title="Ratio of Infected/Susceptible 2nd Approach", y="ratio", x="time (hours)")+
+        theme(plot.title = element_text(hjust = 0.5), axis.text.x = element_text(angle = 90, hjust = 1) )+
+        scale_color_hue(labels = c("Fake News 1", "Fake news 2"), name="")
+}
 
 
 ###### --- v.2  --- #######
@@ -329,7 +406,6 @@ simulateSI <- function(g, tmax, beta, fakeNewsId, news.user.df, verbose=F) {
             # Susceptible without taking into account if they are infected or not
             v.susc <- append(v.susceptible.1, v.susceptible.2); v.susc = unique(v.susc)
             
-            # Purge them until they are all not infected
             nr.v.infect.at.x = floor(beta.t * length(v.susc)) # Take beta prop. of susc nodes to infect
             v.infect.at.x = sample(v.susc, nr.v.infect.at.x, prob = NULL)
             
@@ -364,22 +440,24 @@ chooseFittingBeta <- function(fakeNewsId, news.user.df) {
     infected.originally = nrow(news.user.df[news.user.df$FakeNewsId == fakeNewsId,])
     g = createFakeNewsSubgraphFromId(news.user.df, fakeNewsId)
     tmax = 48
-    thres.break.40 <- infected.originally + infected.originally*0.2 # Threshold of +0.2% nodes extra to stop
-    betas = c(0.001, 0.005); betas = append(betas, seq(0.001, 0.03, length.out = 15))
+    thres.break.40 <- 1.5*infected.originally # Threshold of +0.2% nodes extra to stop
+    betas = seq(0.0001, 0.01, length.out = 15); betas = append(betas, seq(0.01, 0.3, length.out = 15))
     avg.infect <- c()
     pb <- 1
+    
     for (beta in betas){
+    
         set.seed(123)
         progressBar(pb, length(betas))
         nrInfected.10 <- c()
-        for(x in 1:1){ #TODO CHANGE BACK TO 10
+        for(x in 1:10){ 
             infected.progression <- simulateSI(g, tmax, beta, fakeNewsId, news.user.df, F)
             nrInfected.10 <- append(nrInfected.10, infected.progression[length(infected.progression)])
         }
         avg.infect <- append(avg.infect, mean(nrInfected.10))
         pb <- pb + 1
         if(mean(nrInfected.10) >= thres.break.40){
-            print("More than 120% of nodes. No need to up beta")
+            print("More than 150% of nodes. No need to up beta")
             break
         }
     }
@@ -391,6 +469,7 @@ chooseFittingBeta <- function(fakeNewsId, news.user.df) {
     cat(" * Best beta: ", minDiffRow$betas, "\n")
     cat(" * Avg. inf. : " , minDiffRow$avg.infect,"\n")
     cat(" * Org. nr. inf: ", infected.originally, "\n")
+    return(c(minDiffRow$betas[1], minDiffRow$avg.infect[1]))
 }
 
 #-------------------------

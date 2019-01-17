@@ -62,11 +62,11 @@ computeQualityMetric <- function(fitted, real){
 
 # Baseline
 real.infected = c(13, 90, 27, 35, 65, 12, 56, 100, 25, 77)
-fit.infected = c(3, 3, 7520, 3, 3, 3, 7796, 3, 3, 3)
+fit.infected = c(3, 6, 12,  8,  3,  3,  3, 3,  3,  3)
 q.baseline = computeQualityMetric(fit.infected, real.infected); q.baseline
 
 #2nd approach
-
+fit.inf.2nd <- c(451, 3, 452, 454, 457, 469, 730, 159, 448, 522)
 
 # 3rd approach
 Real <- c(13, 90, 27, 35, 65, 12, 56, 100, 25, 77 )
