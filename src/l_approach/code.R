@@ -98,12 +98,18 @@ plotRatioSimInfBaseline(ratio1, ratio2)
 news.test.id <- c(25, 26, 28, 29, 31, 32, 41, 42, 43, 44)
 real.infected = c()
 fit.infected = c()
+times = c()
 for (fn in news.test.id) {
     inf.real.fn = nrow(news.user.df[news.user.df$FakeNewsId == fn,])
     g <- createFakeNewsSubgraphFromId(news.user.df, fn)
     real.infected = append(real.infected, inf.real.fn)
+    
+    start_time = Sys.time()
     res.inf <- simulateSIBaseline(g, tmax, beta.glob.baseline, T)
+    end_time = Sys.time()
+    
     fit.infected = append(fit.infected, res.inf[length(res.inf)])
+    times = append(times, as.double(difftime(end_time, start_time, units="secs")))    
 }
 real.infected = c(13, 90, 27, 35, 65, 12, 56, 100, 25, 77)
 fit.infected = c(3, 6, 12,  8,  3,  3,  3, 3,  3,  3)
@@ -169,12 +175,18 @@ plotRatioSimInf2ndApproach(ratio1, ratio2)
 news.test.id <- c(25, 26, 28, 29, 31, 32, 41, 42, 43, 44)
 real.infected.2nd = c()
 fit.infected.2nd = c()
+times = c()
 for (fn in news.test.id) {
     inf.real.fn = nrow(news.user.df[news.user.df$FakeNewsId == fn,])
     g <- createFakeNewsSubgraphFromId(news.user.df, fn)
     real.infected.2nd = append(real.infected.2nd, inf.real.fn)
+    
+    start_time <- Sys.time()
     res.inf <-  simulateSI(g, tmax, beta.glob.2nd.approach, fn, news.user.df, T)
+    end_time <- Sys.time()
+
     fit.infected.2nd = append(fit.infected.2nd, res.inf[length(res.inf)])
+    times = append(times, as.double(difftime(end_time, start_time, units="secs")))    
 }
 fit.infected.2nd
 real.infected.2nd
